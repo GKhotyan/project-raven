@@ -12,6 +12,7 @@ const { mockPipelineFn } = vi.hoisted(() => ({
 
 vi.mock('@xenova/transformers', () => ({
   pipeline: vi.fn().mockImplementation(async () => mockPipelineFn),
+  env: {},
 }))
 
 vi.mock('../../logger', () => ({

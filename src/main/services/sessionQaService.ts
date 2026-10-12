@@ -8,7 +8,7 @@
  */
 
 import { databaseService } from './database'
-import { embedText, cosineSimilarity } from './ragService'
+import { embedQuery, cosineSimilarity } from './ragService'
 import { getNotesProvider } from './ai/providerFactory'
 import {
   SESSION_QA_TOP_K,
@@ -18,6 +18,7 @@ import {
   SESSION_QA_HISTORY_MAX_CHARS,
   SESSION_QA_SUMMARY_MAX_TOKENS,
   SESSION_QA_SUMMARY_INPUT_SLICE,
+  EMBEDDING_MODEL_ID,
 } from '../constants'
 import { createLogger } from '../logger'
 
@@ -37,7 +38,7 @@ export function invalidateSessionQaCache(): void {
 
 function getChunks(): ParsedChunk[] {
   if (cache) return cache
-  const rows = databaseService.getAllSessionChunks()
+  const rows = databaseService.getAllSessionChunks(EMBEDDING_MODEL_ID)
   const parsed: ParsedChunk[] = []
   for (const row of rows) {
     try {
@@ -320,7 +321,7 @@ export async function askQuestion(
 
   let queryEmbedding: number[]
   try {
-    queryEmbedding = await embedText(question)
+    queryEmbedding = await embedQuery(question)
   } catch (err) {
     log.error('Failed to embed question:', err)
     return { error: 'Failed to process the question. Try again.' }

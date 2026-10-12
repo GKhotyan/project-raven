@@ -6,13 +6,14 @@
  */
 
 import { databaseService, type TranscriptEntry } from './database'
-import { chunkText, embedText } from './ragService'
+import { chunkText, embedPassage } from './ragService'
 import { invalidateSessionQaCache } from './sessionQaService'
 import { getSetting } from '../store'
 import {
   SESSION_INDEX_BACKFILL_SCAN,
   SESSION_INDEX_BACKFILL_LIMIT,
   SUMMARY_MIN_TRANSCRIPT_LENGTH,
+  EMBEDDING_MODEL_ID,
 } from '../constants'
 import { createLogger } from '../logger'
 
@@ -45,13 +46,14 @@ export async function indexSession(sessionId: string): Promise<void> {
   databaseService.deleteSessionChunks(sessionId)
 
   for (let i = 0; i < chunks.length; i++) {
-    const embedding = await embedText(chunks[i])
+    const embedding = await embedPassage(chunks[i])
     databaseService.insertSessionChunk({
       id: globalThis.crypto.randomUUID(),
       sessionId,
       chunkIndex: i,
       chunkText: chunks[i],
       embeddingJson: JSON.stringify(embedding),
+      embeddingModel: EMBEDDING_MODEL_ID,
     })
   }
 

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { chunkText, embedText, invalidateSessionQaCache, getSetting, db } = vi.hoisted(() => ({
+const { chunkText, embedPassage, invalidateSessionQaCache, getSetting, db } = vi.hoisted(() => ({
   chunkText: vi.fn(),
-  embedText: vi.fn(),
+  embedPassage: vi.fn(),
   invalidateSessionQaCache: vi.fn(),
   getSetting: vi.fn(),
   db: {
@@ -14,7 +14,7 @@ const { chunkText, embedText, invalidateSessionQaCache, getSetting, db } = vi.ho
   },
 }))
 
-vi.mock('../ragService', () => ({ chunkText, embedText }))
+vi.mock('../ragService', () => ({ chunkText, embedPassage }))
 vi.mock('../sessionQaService', () => ({ invalidateSessionQaCache }))
 vi.mock('../../store', () => ({ getSetting }))
 vi.mock('../database', () => ({ databaseService: db }))
@@ -33,7 +33,7 @@ describe('indexSession', () => {
   beforeEach(() => {
     Object.values(db).forEach((fn) => fn.mockReset())
     chunkText.mockReset()
-    embedText.mockReset()
+    embedPassage.mockReset()
     invalidateSessionQaCache.mockReset()
     getSetting.mockReturnValue('Sam')
   })
@@ -48,15 +48,21 @@ describe('indexSession', () => {
   it('clears prior chunks, embeds each chunk, stores them, and invalidates the cache', async () => {
     db.getSession.mockReturnValue({ id: 's1', transcript: LONG_TRANSCRIPT })
     chunkText.mockReturnValue(['chunk one', 'chunk two'])
-    embedText.mockResolvedValueOnce([0.1, 0.2]).mockResolvedValueOnce([0.3, 0.4])
+    embedPassage.mockResolvedValueOnce([0.1, 0.2]).mockResolvedValueOnce([0.3, 0.4])
 
     await indexSession('s1')
 
     expect(db.deleteSessionChunks).toHaveBeenCalledWith('s1')
-    expect(embedText).toHaveBeenCalledTimes(2)
+    expect(embedPassage).toHaveBeenCalledTimes(2)
     expect(db.insertSessionChunk).toHaveBeenCalledTimes(2)
     expect(db.insertSessionChunk).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: 's1', chunkIndex: 0, chunkText: 'chunk one', embeddingJson: '[0.1,0.2]' }),
+      expect.objectContaining({
+        sessionId: 's1',
+        chunkIndex: 0,
+        chunkText: 'chunk one',
+        embeddingJson: '[0.1,0.2]',
+        embeddingModel: 'Xenova/multilingual-e5-small',
+      }),
     )
     expect(invalidateSessionQaCache).toHaveBeenCalled()
   })
@@ -64,7 +70,7 @@ describe('indexSession', () => {
   it('labels the user as You (displayName) and the other party as Them when chunking', async () => {
     db.getSession.mockReturnValue({ id: 's1', transcript: LONG_TRANSCRIPT })
     chunkText.mockReturnValue(['c'])
-    embedText.mockResolvedValue([0.1])
+    embedPassage.mockResolvedValue([0.1])
 
     await indexSession('s1')
 
@@ -78,11 +84,11 @@ describe('backfillSessionIndex', () => {
   beforeEach(() => {
     Object.values(db).forEach((fn) => fn.mockReset())
     chunkText.mockReset()
-    embedText.mockReset()
+    embedPassage.mockReset()
     invalidateSessionQaCache.mockReset()
     getSetting.mockReturnValue('You')
     chunkText.mockReturnValue(['c'])
-    embedText.mockResolvedValue([0.1])
+    embedPassage.mockResolvedValue([0.1])
   })
 
   it('skips sessions that are already indexed', async () => {
@@ -119,7 +125,7 @@ describe('backfillSessionIndex', () => {
 
     // Hold the embedding open so the two calls overlap.
     let resolveEmbed: (v: number[]) => void = () => {}
-    embedText.mockReturnValue(new Promise<number[]>((r) => { resolveEmbed = r }))
+    embedPassage.mockReturnValue(new Promise<number[]>((r) => { resolveEmbed = r }))
 
     const first = backfillSessionIndex()
     const second = backfillSessionIndex() // should early-return (guard)

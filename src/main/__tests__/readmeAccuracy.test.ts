@@ -25,9 +25,9 @@ describe('README matches the OSS runtime', () => {
     expect(text).not.toMatch(/two parallel WebSocket connections to Deepgram Nova-3/)
   })
 
-  it('describes RAG as local MiniLM per mode, not cross-meeting memory', () => {
+  it('describes RAG as local multilingual-e5 per mode, not cross-meeting memory', () => {
     const text = readme()
-    expect(text).toMatch(/Xenova\/all-MiniLM-L6-v2/)
+    expect(text).toMatch(/Xenova\/multilingual-e5-small/)
     expect(text).toMatch(/sessionMemory/)
     expect(text).toMatch(/cross-meeting user-memory/)
     expect(text).toMatch(/There is no global/)

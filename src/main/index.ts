@@ -61,7 +61,7 @@ import {
   ipv4RendererURL,
 } from './windowManager'
 import { getSetting, getStore, saveSetting, hasApiKeys } from './store'
-import { OVERLAY_SHOW_DELAY_MS, AUDIO_SAMPLE_RATE, AUDIO_CHANNELS, DEEPGRAM_KEEPALIVE_MS } from './constants'
+import { OVERLAY_SHOW_DELAY_MS, AUDIO_SAMPLE_RATE, AUDIO_CHANNELS, DEEPGRAM_KEEPALIVE_MS, EMBEDDING_MIGRATION_BOOT_DELAY_MS } from './constants'
 import { AudioManager } from './audioManager'
 import { ClaudeService } from './claudeService'
 import { registerSystemAudioHandlers } from './systemAudioNative'
@@ -440,6 +440,14 @@ app.whenReady().then(() => {
   void initializeVendorFeatures()
   boot()
 
+  // Re-embed documents/sessions indexed with an older embedding model. No-op
+  // (and no model load) when nothing is stale.
+  setTimeout(() => {
+    void import('./services/embeddingMigrationService').then(({ migrateStaleEmbeddings }) =>
+      migrateStaleEmbeddings(),
+    )
+  }, EMBEDDING_MIGRATION_BOOT_DELAY_MS)
+
   // Session IPC handlers
   safeHandle('sessions:create', (session: Omit<Session, 'createdAt'>) => {
     return databaseService.createSession(session)
@@ -628,7 +636,9 @@ app.whenReady().then(() => {
   // Ask view opens so the embedding model only loads if Ask is actually used.
   safeHandle('sessions:ensure-index', async () => {
     const { backfillSessionIndex } = await import('./services/sessionIndexService')
-    void backfillSessionIndex()
+    const { migrateStaleEmbeddings } = await import('./services/embeddingMigrationService')
+    // Migrate first: both paths call indexSession and would race on the same rows.
+    void migrateStaleEmbeddings().then(() => backfillSessionIndex())
     return true
   })
 

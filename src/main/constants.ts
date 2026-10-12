@@ -50,10 +50,21 @@ export const NOTES_RETRY_SCAN = 40
 export const NOTES_RETRY_LIMIT = 8
 
 export const RAG_QUERY_TRANSCRIPT_SLICE = 500
-export const RAG_DEFAULT_TOP_K = 5
+export const RAG_DEFAULT_TOP_K = 10
 export const RAG_MAX_CONTEXT_TOKENS = 3000
-export const RAG_CHUNK_SIZE = 500
-export const RAG_CHUNK_OVERLAP = 50
+// Words per chunk. The embedding model reads at most 512 tokens and Russian
+// runs ~2 tokens/word, so larger chunks get silently truncated.
+export const RAG_CHUNK_SIZE = 200
+export const RAG_CHUNK_OVERLAP = 30
+
+/**
+ * On-device embedding model for mode documents and the session index.
+ * Stored with each vector; changing it makes embeddingMigrationService
+ * re-embed existing chunks.
+ */
+export const EMBEDDING_MODEL_ID = 'Xenova/multilingual-e5-small'
+/** Delay before re-embedding stale chunks on boot, so it doesn't compete with startup. */
+export const EMBEDDING_MIGRATION_BOOT_DELAY_MS = 15000
 
 // Ask-my-meetings: local Q&A across the transcript index. Higher top-K and
 // token budget than per-mode RAG because it searches across many sessions.

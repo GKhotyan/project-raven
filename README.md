@@ -120,10 +120,10 @@ Installed copies check GitHub Releases for updates (`latest.yml` on Windows, `la
 - **AI assistance** — Anthropic or OpenAI from the overlay (Assist, recap, follow-up, and custom prompts). Optional screenshot via `desktopCapturer`.
 - **Stealth overlay** — Electron `setContentProtection` so the overlay and dashboard are omitted from typical screen-share APIs (Zoom, Meet, Teams, Discord). Not a guarantee against every capture tool.
 - **Modes** — Local behavior profiles (system prompt, notes templates). Attach documents for RAG on that mode.
-- **RAG (per mode, local)** — Upload `.txt`, `.md`, `.pdf`, or `.docx`. Chunked and embedded on-device with `Xenova/all-MiniLM-L6-v2` (`@xenova/transformers`). Chunks live in SQLite; the top matches are injected into the Assist system prompt. First embed may download the ~30MB model.
+- **RAG (per mode, local)** — Upload `.txt`, `.md`, `.pdf`, or `.docx`. Chunked and embedded on-device with the multilingual `Xenova/multilingual-e5-small` (`@xenova/transformers`). Chunks live in SQLite; the top matches are injected into the Assist system prompt. The first embed downloads the ~118MB model into the app's user-data folder (`models/`); later launches load it from there. Documents and sessions indexed with an older model are re-embedded automatically in the background.
 - **Session context (not long-term memory)** — During a recording, Assist keeps recent turns, pins the opening transcript and your typed questions, and may compress older context with a cheap model. That compacted memory is stored **on the session row** (local SQLite, deleted with the session) so a resumed session can pick it back up. There is **no** cross-meeting user-memory profile.
 - **Sessions** — Saved locally in SQLite (transcript, overlay chat, auto title/summary). Dashboard can generate insights with your LLM key. **Resume** a saved session to keep recording into it later (a multi-day interview stays one session, and Assist remembers the earlier sitting). **Incognito** skips SQLite persistence for that session.
-- **Ask your meetings** — A per-session **Ask** tab answers from that call's transcript; **Ask across all meetings** searches your whole history with on-device retrieval (`Xenova/all-MiniLM-L6-v2`) and cites the source sessions. Answers stream token-by-token; conversations are saved (one per session, plus multi-chat for the global view).
+- **Ask your meetings** — A per-session **Ask** tab answers from that call's transcript; **Ask across all meetings** searches your whole history with on-device retrieval (`Xenova/multilingual-e5-small`) and cites the source sessions. Answers stream token-by-token; conversations are saved (one per session, plus multi-chat for the global view).
 - **Post-call recap** — Structured **action items** (task, owner, deadline), a one-click **follow-up email** draft, **talk ratio** (You vs. Them, word-based), and **export** to Markdown or PDF. All generated with your own key; nothing goes to a Raven server.
 - **Meeting auto-start** — Optionally detect a Zoom, Google Meet, Microsoft Teams (including 1:1 calls), or Webex meeting and prompt — or auto-start — a recording. No bot joins; detection just reads open window titles locally. Off / prompt / auto in Settings.
 - **In-app updates** — Windows and (from 2.4.1) macOS update in place: **Update now** downloads, **Restart & update** installs. Your keys and history are untouched.
@@ -147,7 +147,7 @@ flowchart TB
     AEC["GStreamer webrtcechoprobe / webrtcdsp"]
     REG[ResidualEchoGate]
     AM[audioManager]
-    RAG["ragService — MiniLM embeddings"]
+    RAG["ragService — multilingual-e5 embeddings"]
     MEM["sessionMemory — current recording only"]
     CS[claudeService]
     DB[("SQLite data/raven.db")]
@@ -157,7 +157,7 @@ flowchart TB
   end
 
   subgraph postcall [Post-call on this machine]
-    SIDX["sessionIndexService — MiniLM transcript index"]
+    SIDX["sessionIndexService — e5 transcript index"]
     SQA["sessionQaService — Ask, streamed"]
     RECAP["Recap — action items, follow-up email, export, insights"]
   end
@@ -203,7 +203,7 @@ flowchart TB
 | Assist `sessionMemory` | Until you delete the session (SQLite, `assist_memory_json`) | Running summary, pinned opening, pinned questions; restored when you **Resume** that session |
 | SQLite sessions / messages | Until you delete them | History, summaries, insights, overlay chat replay |
 | RAG chunks | Until you remove the file from the mode | Retrieve-then-prompt on Assist, scoped to that mode |
-| Session Ask index | Until you delete the session | Retrieve-then-prompt for **Ask across all meetings** (on-device MiniLM) |
+| Session Ask index | Until you delete the session | Retrieve-then-prompt for **Ask across all meetings** (on-device multilingual-e5) |
 | Ask conversations | Until you delete the chat / session | Saved Ask history — one per session, plus standalone global threads |
 | electron-store | Until you reset settings | Keys, STT preference, window bounds — not semantic memory |
 
@@ -237,11 +237,12 @@ src/
 │       ├── database.ts           #   SQLite (sessions, modes, RAG chunks, Ask index + chats)
 │       ├── sessionManager.ts     #   Session lifecycle, incognito, autosave
 │       ├── ragService.ts         #   Parse, embed, retrieve
+│       ├── embeddingMigrationService.ts # Re-embed chunks after a model change
 │       ├── assemblyAITranscriptionService.ts
 │       ├── summaryService.ts     #   Post-session title + summary
 │       ├── insightsService.ts    #   Dashboard insights
 │       ├── sessionQaService.ts   #   Ask (per-session + across all), streamed
-│       ├── sessionIndexService.ts #  Transcript index for Ask (MiniLM)
+│       ├── sessionIndexService.ts #  Transcript index for Ask (multilingual-e5)
 │       ├── sessionExportService.ts # Markdown / PDF export
 │       ├── followupEmailService.ts # Follow-up email draft
 │       └── ai/

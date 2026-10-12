@@ -31,6 +31,7 @@ const mockPipelineFn = vi.fn()
 
 vi.mock('@xenova/transformers', () => ({
   pipeline: vi.fn().mockImplementation(async () => mockPipelineFn),
+  env: {},
 }))
 
 vi.mock('fs/promises', () => ({
@@ -97,11 +98,22 @@ describe('ragService', () => {
       expect(call.fileName).toBe('file.txt')
       expect(call.chunkIndex).toBe(0)
       expect(call.chunkText).toBe('Hello world test content')
+      expect(call.embeddingModel).toBe('Xenova/multilingual-e5-small')
       expect(JSON.parse(call.embeddingJson)).toEqual([
         expect.closeTo(0.1),
         expect.closeTo(0.2),
         expect.closeTo(0.3),
       ])
+    })
+
+    it('embeds document chunks with the e5 passage prefix', async () => {
+      const { readFile } = await import('fs/promises')
+      vi.mocked(readFile).mockResolvedValue('Привет мир')
+      mockPipelineFn.mockClear()
+
+      await uploadContextFile('mode-1', '/path/to/file.txt', 'file.txt', 50)
+
+      expect(mockPipelineFn).toHaveBeenCalledWith('passage: Привет мир', expect.anything())
     })
 
     it('reports progress through callback', async () => {
@@ -195,6 +207,18 @@ describe('ragService', () => {
         expect(result[i - 1].score).toBeGreaterThanOrEqual(result[i].score)
       }
       expect(result[0].chunkText).toBe('Most relevant')
+    })
+
+    it('embeds the query with the e5 query prefix and only reads current-model chunks', async () => {
+      mockGetContextChunks.mockReturnValue([
+        { id: '1', chunkIndex: 0, chunkText: 'A', embeddingJson: JSON.stringify([1, 0, 0]), fileName: 'a.txt' },
+      ])
+      mockPipelineFn.mockClear()
+
+      await retrieveRelevantChunks('mode-1', 'сколько стоит')
+
+      expect(mockPipelineFn).toHaveBeenCalledWith('query: сколько стоит', expect.anything())
+      expect(mockGetContextChunks).toHaveBeenCalledWith('mode-1', 'Xenova/multilingual-e5-small')
     })
 
     it('respects topK parameter', async () => {

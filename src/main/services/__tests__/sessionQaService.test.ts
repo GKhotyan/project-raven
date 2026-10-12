@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { embedText, cosineSimilarity, getNotesProvider, generateShort, db } = vi.hoisted(() => ({
-  embedText: vi.fn(),
+const { embedQuery, cosineSimilarity, getNotesProvider, generateShort, db } = vi.hoisted(() => ({
+  embedQuery: vi.fn(),
   cosineSimilarity: vi.fn(),
   getNotesProvider: vi.fn(),
   generateShort: vi.fn(),
@@ -11,7 +11,7 @@ const { embedText, cosineSimilarity, getNotesProvider, generateShort, db } = vi.
   },
 }))
 
-vi.mock('../ragService', () => ({ embedText, cosineSimilarity }))
+vi.mock('../ragService', () => ({ embedQuery, cosineSimilarity }))
 vi.mock('../ai/providerFactory', () => ({ getNotesProvider }))
 vi.mock('../database', () => ({ databaseService: db }))
 vi.mock('../../logger', () => ({
@@ -79,7 +79,7 @@ describe('buildQaPrompt', () => {
 describe('askQuestion', () => {
   beforeEach(() => {
     invalidateSessionQaCache()
-    embedText.mockReset()
+    embedQuery.mockReset()
     cosineSimilarity.mockReset()
     generateShort.mockReset()
     db.getAllSessionChunks.mockReset()
@@ -112,7 +112,7 @@ describe('askQuestion', () => {
     ])
     // Rank: s1 chunks highest, then s2.
     cosineSimilarity.mockImplementation((_q: number[], e: number[]) => (e[0] < 0.5 ? 0.9 : 0.1))
-    embedText.mockResolvedValue([0.1])
+    embedQuery.mockResolvedValue([0.1])
     db.getSessionMeta.mockImplementation((id: string) =>
       id === 's1'
         ? { id: 's1', title: 'Pricing call', startedAt: 1000 }
@@ -122,6 +122,8 @@ describe('askQuestion', () => {
 
     const result = await askQuestion('what pricing did we agree?')
 
+    // Only vectors from the current model are comparable with the query.
+    expect(db.getAllSessionChunks).toHaveBeenCalledWith('Xenova/multilingual-e5-small')
     expect('answer' in result).toBe(true)
     if ('answer' in result) {
       expect(result.answer).toBe('It was $20/mo [1].')
@@ -151,7 +153,7 @@ describe('askQuestion', () => {
       { sessionId: 's1', chunkText: 'x', embeddingJson: '[0.1]' },
     ])
     cosineSimilarity.mockReturnValue(0.5)
-    embedText.mockResolvedValue([0.1])
+    embedQuery.mockResolvedValue([0.1])
     db.getSessionMeta.mockReturnValue({ id: 's1', title: 'T', startedAt: 1 })
     generateShort.mockRejectedValueOnce(new Error('rate limited'))
 

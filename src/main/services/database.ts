@@ -531,6 +531,17 @@ class DatabaseService {
           ALTER TABLE sessions ADD COLUMN assist_memory_json TEXT DEFAULT NULL;
         `,
       },
+      {
+        // Which embedding model produced each vector. NULL = the original
+        // all-MiniLM-L6-v2. Vectors from different models aren't comparable,
+        // so retrieval filters on it and embeddingMigrationService re-embeds
+        // stale rows.
+        name: '020_add_chunk_embedding_model',
+        sql: `
+          ALTER TABLE mode_context_chunks ADD COLUMN embedding_model TEXT DEFAULT NULL;
+          ALTER TABLE session_context_chunks ADD COLUMN embedding_model TEXT DEFAULT NULL;
+        `,
+      },
     ];
 
     // Capture `this.db` to a local after the !null guard above so the
@@ -1378,12 +1389,39 @@ class DatabaseService {
     chunkIndex: number;
     chunkText: string;
     embeddingJson: string;
+    embeddingModel: string;
   }): void {
     if (!this.db) throw new Error('Database not initialized');
     this.db.prepare(
-      `INSERT INTO mode_context_chunks (id, mode_id, file_id, file_name, chunk_index, chunk_text, embedding_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(params.id, params.modeId, params.fileId, params.fileName, params.chunkIndex, params.chunkText, params.embeddingJson, Date.now());
+      `INSERT INTO mode_context_chunks (id, mode_id, file_id, file_name, chunk_index, chunk_text, embedding_json, embedding_model, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(params.id, params.modeId, params.fileId, params.fileName, params.chunkIndex, params.chunkText, params.embeddingJson, params.embeddingModel, Date.now());
+  }
+
+  /** Context files with at least one chunk not embedded by `embeddingModel`. */
+  getStaleContextFiles(embeddingModel: string): Array<{ fileId: string; modeId: string; fileName: string }> {
+    if (!this.db) throw new Error('Database not initialized');
+    const rows = this.db.prepare(
+      `SELECT DISTINCT file_id, mode_id, file_name FROM mode_context_chunks
+       WHERE embedding_model IS NULL OR embedding_model != ?`
+    ).all(embeddingModel) as Array<{ file_id: string; mode_id: string; file_name: string }>;
+    return rows.map((r) => ({ fileId: r.file_id, modeId: r.mode_id, fileName: r.file_name }));
+  }
+
+  /** Atomically swap a file's chunks for a re-embedded set and update its chunk count. */
+  replaceContextChunks(
+    fileId: string,
+    chunks: Array<{ id: string; modeId: string; fileName: string; chunkIndex: number; chunkText: string; embeddingJson: string; embeddingModel: string }>
+  ): void {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db;
+    db.transaction(() => {
+      db.prepare('DELETE FROM mode_context_chunks WHERE file_id = ?').run(fileId);
+      for (const chunk of chunks) {
+        this.insertContextChunk({ ...chunk, fileId });
+      }
+      db.prepare('UPDATE mode_context_files SET chunk_count = ? WHERE id = ?').run(chunks.length, fileId);
+    })();
   }
 
   // ==================== SESSION CHUNKS (ask-my-meetings) ====================
@@ -1394,12 +1432,25 @@ class DatabaseService {
     chunkIndex: number;
     chunkText: string;
     embeddingJson: string;
+    embeddingModel: string;
   }): void {
     if (!this.db) throw new Error('Database not initialized');
     this.db.prepare(
-      `INSERT INTO session_context_chunks (id, session_id, chunk_index, chunk_text, embedding_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(params.id, params.sessionId, params.chunkIndex, params.chunkText, params.embeddingJson, Date.now());
+      `INSERT INTO session_context_chunks (id, session_id, chunk_index, chunk_text, embedding_json, embedding_model, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(params.id, params.sessionId, params.chunkIndex, params.chunkText, params.embeddingJson, params.embeddingModel, Date.now());
+  }
+
+  /** Sessions with at least one chunk not embedded by `embeddingModel`. */
+  getStaleSessionChunkIds(embeddingModel: string): string[] {
+    if (!this.db) throw new Error('Database not initialized');
+    const rows = this.db
+      .prepare(
+        `SELECT DISTINCT session_id FROM session_context_chunks
+         WHERE embedding_model IS NULL OR embedding_model != ?`
+      )
+      .all(embeddingModel) as Array<{ session_id: string }>;
+    return rows.map((r) => r.session_id);
   }
 
   deleteSessionChunks(sessionId: string): void {
@@ -1416,12 +1467,12 @@ class DatabaseService {
     return new Set(rows.map((r) => r.session_id));
   }
 
-  /** All session chunks across every session — used to build the QA index. */
-  getAllSessionChunks(): Array<{ sessionId: string; chunkText: string; embeddingJson: string }> {
+  /** All session chunks embedded by `embeddingModel` — used to build the QA index. */
+  getAllSessionChunks(embeddingModel: string): Array<{ sessionId: string; chunkText: string; embeddingJson: string }> {
     if (!this.db) throw new Error('Database not initialized');
     const rows = this.db
-      .prepare('SELECT session_id, chunk_text, embedding_json FROM session_context_chunks')
-      .all() as Array<{ session_id: string; chunk_text: string; embedding_json: string }>;
+      .prepare('SELECT session_id, chunk_text, embedding_json FROM session_context_chunks WHERE embedding_model = ?')
+      .all(embeddingModel) as Array<{ session_id: string; chunk_text: string; embedding_json: string }>;
     return rows.map((r) => ({
       sessionId: r.session_id,
       chunkText: r.chunk_text,
@@ -1565,7 +1616,8 @@ class DatabaseService {
     }));
   }
 
-  getContextChunks(modeId: string): Array<{
+  /** A mode's chunks embedded by `embeddingModel` (vectors from other models aren't comparable). */
+  getContextChunks(modeId: string, embeddingModel: string): Array<{
     id: string;
     chunkIndex: number;
     chunkText: string;
@@ -1574,8 +1626,8 @@ class DatabaseService {
   }> {
     if (!this.db) throw new Error('Database not initialized');
     const rows = this.db.prepare(
-      'SELECT id, chunk_index, chunk_text, embedding_json, file_name FROM mode_context_chunks WHERE mode_id = ? ORDER BY file_name, chunk_index'
-    ).all(modeId) as Array<{
+      'SELECT id, chunk_index, chunk_text, embedding_json, file_name FROM mode_context_chunks WHERE mode_id = ? AND embedding_model = ? ORDER BY file_name, chunk_index'
+    ).all(modeId, embeddingModel) as Array<{
       id: string;
       chunk_index: number;
       chunk_text: string;
