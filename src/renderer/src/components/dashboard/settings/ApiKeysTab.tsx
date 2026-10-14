@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createLogger } from '../../../lib/logger'
+import { planLlmKeyValidation } from '../../../lib/llmKeys'
 
 const log = createLogger('Settings:ApiKeys')
 
@@ -20,6 +21,10 @@ export function ApiKeysTab() {
   const [deepgramStatus, setDeepgramStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
   const [anthropicStatus, setAnthropicStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
   const [openaiStatus, setOpenaiStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
+  const [zaiKey, setZaiKey] = useState('')
+  const [originalZaiKey, setOriginalZaiKey] = useState('')
+  const [showZai, setShowZai] = useState(false)
+  const [zaiStatus, setZaiStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -45,6 +50,12 @@ export function ApiKeysTab() {
           setOriginalOpenaiKey(oaiKey)
           setOpenaiStatus('valid')
         }
+        const zKey = (await window.raven.storeGet('zaiApiKey')) as string
+        if (zKey) {
+          setZaiKey(zKey)
+          setOriginalZaiKey(zKey)
+          setZaiStatus('valid')
+        }
         const aaiKey = (await window.raven.storeGet('assemblyaiApiKey')) as string
         if (aaiKey) { setAssemblyKey(aaiKey); setOriginalAssemblyKey(aaiKey); setAssemblyStatus('valid') }
       } catch (error) {
@@ -58,6 +69,7 @@ export function ApiKeysTab() {
     deepgramKey.trim() !== originalDeepgramKey
     || anthropicKey.trim() !== originalAnthropicKey
     || openaiKey.trim() !== originalOpenaiKey
+    || zaiKey.trim() !== originalZaiKey
     || assemblyKey.trim() !== originalAssemblyKey
   const canSave = hasChanges
 
@@ -67,46 +79,41 @@ export function ApiKeysTab() {
       return false
     }
 
-    if (!anthropicKey.trim() && !openaiKey.trim()) {
-      setSaveMessage({ type: 'error', text: 'Add an Anthropic or OpenAI key' })
+    const plan = planLlmKeyValidation({ anthropic: anthropicKey, openai: openaiKey, zai: zaiKey })
+    if (!plan) {
+      setSaveMessage({ type: 'error', text: 'Add an Anthropic, OpenAI or Z.ai key' })
       return false
     }
 
+    const setStatusFor = { anthropic: setAnthropicStatus, openai: setOpenaiStatus, zai: setZaiStatus }
+    const checked: Array<keyof typeof setStatusFor> = [plan.primary]
+    if (plan.extras?.openaiKey) checked.push('openai')
+    if (plan.extras?.zaiKey) checked.push('zai')
+
     if (deepgramKey.trim()) setDeepgramStatus('validating')
-    if (anthropicKey.trim()) setAnthropicStatus('validating')
-    if (openaiKey.trim()) setOpenaiStatus('validating')
+    checked.forEach((p) => setStatusFor[p]('validating'))
     setSaveMessage(null)
 
     try {
-      const firstProvider = anthropicKey.trim() ? 'anthropic' : 'openai'
-      const firstKey = anthropicKey.trim() || openaiKey.trim()
-      // Both LLM keys go in a single call; the channel has a 2s cooldown.
-      const hasSecondaryOpenai = firstProvider === 'anthropic' && openaiKey.trim().length > 0
-      const result = await window.raven.validateKeys(
-        deepgramKey.trim(),
-        firstProvider,
-        firstKey,
-        hasSecondaryOpenai ? { openaiKey: openaiKey.trim() } : undefined,
-      )
+      // Every LLM key goes in a single call; the channel has a 2s cooldown.
+      const result = await window.raven.validateKeys(deepgramKey.trim(), plan.primary, plan.primaryKey, plan.extras)
       if ('throttled' in result && result.throttled) {
         // Nothing was checked; don't leave spinners running.
         if (deepgramKey.trim()) setDeepgramStatus('idle')
-        if (anthropicKey.trim()) setAnthropicStatus('idle')
-        if (openaiKey.trim()) setOpenaiStatus('idle')
+        checked.forEach((p) => setStatusFor[p]('idle'))
         setSaveMessage({ type: 'error', text: 'Please wait a moment and try again.' })
         return false
       }
       if (!result.valid) {
         if (deepgramKey.trim()) setDeepgramStatus(result.deepgramError ? 'invalid' : 'valid')
-        if (firstProvider === 'anthropic') setAnthropicStatus(result.aiError ? 'invalid' : 'valid')
-        if (firstProvider === 'openai') setOpenaiStatus(result.aiError ? 'invalid' : 'valid')
-        if (hasSecondaryOpenai) setOpenaiStatus(result.openaiError ? 'invalid' : 'valid')
+        setStatusFor[plan.primary](result.aiError ? 'invalid' : 'valid')
+        if (plan.extras?.openaiKey) setOpenaiStatus(result.openaiError ? 'invalid' : 'valid')
+        if (plan.extras?.zaiKey) setZaiStatus(result.zaiError ? 'invalid' : 'valid')
         setSaveMessage({ type: 'error', text: result.error || 'Invalid API keys' })
         return false
       }
       if (deepgramKey.trim()) setDeepgramStatus('valid')
-      if (firstProvider === 'anthropic') setAnthropicStatus('valid')
-      if (firstProvider === 'openai' || hasSecondaryOpenai) setOpenaiStatus('valid')
+      checked.forEach((p) => setStatusFor[p]('valid'))
 
       if (assemblyKey.trim()) {
         setAssemblyStatus('validating')
@@ -125,6 +132,7 @@ export function ApiKeysTab() {
       if (deepgramKey.trim()) setDeepgramStatus('invalid')
       if (anthropicKey.trim()) setAnthropicStatus('invalid')
       if (openaiKey.trim()) setOpenaiStatus('invalid')
+      if (zaiKey.trim()) setZaiStatus('invalid')
       setSaveMessage({ type: 'error', text: 'Failed to validate connection' })
       return false
     }
@@ -139,11 +147,13 @@ export function ApiKeysTab() {
       try {
         await window.raven.apiKeysSave(deepgramKey.trim(), anthropicKey.trim(), openaiKey.trim(), {
           assemblyaiApiKey: assemblyKey.trim(),
+          zaiApiKey: zaiKey.trim(),
         })
         setSaveMessage({ type: 'success', text: 'API keys saved' })
         setOriginalDeepgramKey(deepgramKey.trim())
         setOriginalAnthropicKey(anthropicKey.trim())
         setOriginalOpenaiKey(openaiKey.trim())
+        setOriginalZaiKey(zaiKey.trim())
         setOriginalAssemblyKey(assemblyKey.trim())
       } catch {
         setSaveMessage({ type: 'error', text: 'Failed to save API keys' })
@@ -411,6 +421,63 @@ export function ApiKeysTab() {
           </div>
         </div>
         <p className="text-xs text-gray-400">GPT. Choose where to use it under Models.</p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium text-gray-700">
+            Z.ai API Key <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault()
+              window.raven.openExternal('https://z.ai/manage-apikey/apikey-list')
+            }}
+            className="text-xs text-blue-600 hover:text-blue-700"
+          >
+            Get API Key &rarr;
+          </a>
+        </div>
+        <div className="relative">
+          <input
+            type={showZai ? 'text' : 'password'}
+            value={zaiKey}
+            onChange={(e) => {
+              setZaiKey(e.target.value)
+              setZaiStatus('idle')
+              setSaveMessage(null)
+            }}
+            placeholder="Z.ai API key"
+            className={`w-full px-3 py-2 pr-20 border rounded-lg text-sm transition-colors ${
+              zaiStatus === 'invalid'
+                ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                : zaiStatus === 'valid'
+                ? 'border-green-300 focus:border-green-500 focus:ring-green-500'
+                : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+            } focus:outline-none focus:ring-1`}
+          />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            {getStatusIcon(zaiStatus)}
+            <button
+              type="button"
+              onClick={() => setShowZai(!showZai)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              {showZai ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M3 3l18 18" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400">GLM models. Choose where to use it under Models.</p>
       </div>
 
       {saveMessage && (
