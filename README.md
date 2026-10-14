@@ -20,7 +20,7 @@
 
 Raven is an Electron desktop app. It captures microphone and system audio, cancels echo on your machine, transcribes **You** and **Them** on two parallel streams, and answers from the live transcript. You bring your own API keys. This build has **no Raven account, no hosted backend, and no cloud session sync**.
 
-Capture, echo cancellation, SQLite history, and document RAG run locally. Microphone/system audio goes to **Deepgram** or **AssemblyAI**. Assist prompts (transcript excerpts, chat, optional screenshot, retrieved docs) go to **Anthropic** or **OpenAI**.
+Capture, echo cancellation, SQLite history, and document RAG run locally. Microphone/system audio goes to **Deepgram** or **AssemblyAI**. Assist prompts (transcript excerpts, chat, optional screenshot, retrieved docs) go to **Anthropic**, **OpenAI** or **Z.ai**.
 
 <p align="center">
   <a href="#download"><strong>Download</strong></a> &nbsp;|&nbsp;
@@ -117,7 +117,7 @@ Installed copies check GitHub Releases for updates (`latest.yml` on Windows, `la
 - **Dual-stream capture** — System audio + microphone. macOS uses ScreenCaptureKit + CoreAudio; Windows uses WASAPI loopback + capture (Rust/NAPI).
 - **Echo cancellation** — GStreamer `webrtcechoprobe` / `webrtcdsp` (WebRTC AEC3), then a **residual echo gate** that drops mic chunks that still look like speaker bleed before they reach STT.
 - **Real-time transcription** — Two streams: **You** (cleaned mic) and **Them** (system audio). Deepgram `nova-3` and/or AssemblyAI `u3-rt-pro`. Auto-routing prefers AssemblyAI for English, Spanish, French, German, Portuguese, and Italian when that key is present; otherwise Deepgram. Settings can force either engine.
-- **AI assistance** — Anthropic or OpenAI from the overlay (Assist, recap, follow-up, and custom prompts). Optional screenshot via `desktopCapturer`.
+- **AI assistance** — Anthropic, OpenAI or Z.ai (GLM) from the overlay (Assist, recap, follow-up, and custom prompts). Optional screenshot via `desktopCapturer`.
 - **Stealth overlay** — Electron `setContentProtection` so the overlay and dashboard are omitted from typical screen-share APIs (Zoom, Meet, Teams, Discord). Not a guarantee against every capture tool.
 - **Modes** — Local behavior profiles (system prompt, notes templates). Attach documents for RAG on that mode.
 - **RAG (per mode, local)** — Upload `.txt`, `.md`, `.pdf`, or `.docx`. Chunked and embedded on-device with the multilingual `Xenova/multilingual-e5-small` (`@xenova/transformers`). Chunks live in SQLite; the top matches are injected into the Assist system prompt. The first embed downloads the ~118MB model into the app's user-data folder (`models/`); later launches load it from there. Documents and sessions indexed with an older model are re-embedded automatically in the background.
@@ -164,7 +164,7 @@ flowchart TB
 
   subgraph byok [Your API keys — not a Raven server]
     STT["Deepgram nova-3 and/or AssemblyAI u3-rt-pro"]
-    LLM[Anthropic or OpenAI]
+    LLM[Anthropic, OpenAI or Z.ai]
   end
 
   Win --> SAN
@@ -276,7 +276,7 @@ This walkthrough is for building from source — from a fresh machine to a runni
 > **API keys** (entered in-app on first launch — nothing to configure beforehand):
 >
 > - [Deepgram](https://console.deepgram.com) or [AssemblyAI](https://www.assemblyai.com) — real-time transcription
-> - [Anthropic](https://console.anthropic.com) or [OpenAI](https://platform.openai.com) — AI assistance
+> - [Anthropic](https://console.anthropic.com), [OpenAI](https://platform.openai.com) or [Z.ai](https://z.ai) — AI assistance
 
 ---
 
@@ -657,7 +657,7 @@ Test-Path src\native\windows\raven-windows-audio.win32-x64-msvc.node
 npm run dev
 ```
 
-The Electron app opens. On first launch you'll see a 6-step onboarding flow — enter a transcription key (Deepgram and/or AssemblyAI) and an AI key (Anthropic or OpenAI).
+The Electron app opens. On first launch you'll see a 6-step onboarding flow — enter a transcription key (Deepgram and/or AssemblyAI) and an AI key (Anthropic, OpenAI or Z.ai).
 
 > **If the app starts but audio capture doesn't work:** Check **Settings → Sound** and make sure the correct playback and recording devices are set as default. WASAPI captures from the **default** devices. The Settings mic picker only drives the in-app mic test.
 
