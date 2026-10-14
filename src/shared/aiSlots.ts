@@ -76,9 +76,13 @@ export function resolveSettingsPickerModel(
   return id === NOTES_FAST_MODELS[provider] ? id : NOTES_FAST_MODELS[provider]
 }
 
-/** Luna may use none/low. Haiku has no effort API; callers still store `low`. */
-export function resolveSettingsPickerEffort(requested: unknown): 'none' | 'low' {
-  return requested === 'none' ? 'none' : 'low'
+/**
+ * Notes effort: none/low/high. `high` is for models that reason poorly at
+ * low (GLM-5.3 Flash skips thinking there). Haiku has no effort API;
+ * callers still store `low`.
+ */
+export function resolveSettingsPickerEffort(requested: unknown): 'none' | 'low' | 'high' {
+  return requested === 'none' || requested === 'high' ? requested : 'low'
 }
 
 /** Live-assist vendor only. Ignores notesProvider / notesModel. */

@@ -83,14 +83,14 @@ export function settingsPickerModels(provider: AIProviderName): ModelOption[] {
   return MODEL_CATALOG[provider].filter((m) => m.id === id)
 }
 
-/** Fast picker: hide high/max effort even if Luna's API ladder includes them. */
+/** Fast picker: none/low/high only; xhigh/max stay Live assist only. */
 export function settingsPickerEffortLevels(
   provider: AIProviderName,
   model: string,
 ): EffortLevel[] | null {
   const levels = effortLevelsForModel(provider, model)
   if (!levels) return null
-  const allowed = levels.filter((level) => level === 'none' || level === 'low')
+  const allowed = levels.filter((level) => level === 'none' || level === 'low' || level === 'high')
   return allowed.length > 0 ? allowed : null
 }
 

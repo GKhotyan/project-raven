@@ -63,9 +63,10 @@ describe('aiSlots', () => {
     expect(resolveSettingsPickerModel('openai', 'gpt-5.6-luna')).toBe('gpt-5.6-luna')
   })
 
-  it('resolveSettingsPickerEffort keeps none/low and clamps everything else to low', () => {
+  it('resolveSettingsPickerEffort keeps none/low/high and clamps everything else to low', () => {
     expect(resolveSettingsPickerEffort('none')).toBe('none')
     expect(resolveSettingsPickerEffort('low')).toBe('low')
+    expect(resolveSettingsPickerEffort('high')).toBe('high')
     expect(resolveSettingsPickerEffort('max')).toBe('low')
     expect(resolveSettingsPickerEffort(undefined)).toBe('low')
   })

@@ -72,7 +72,7 @@ describe('Settings model catalog', () => {
     expect(settingsPickerModels('anthropic').map((m) => m.id)).toEqual(['claude-haiku-4-5'])
     expect(settingsPickerModels('openai').map((m) => m.id)).toEqual(['gpt-5.6-luna'])
     expect(settingsPickerEffortLevels('anthropic', 'claude-haiku-4-5')).toBeNull()
-    expect(settingsPickerEffortLevels('openai', 'gpt-5.6-luna')).toEqual(['none', 'low'])
+    expect(settingsPickerEffortLevels('openai', 'gpt-5.6-luna')).toEqual(['none', 'low', 'high'])
   })
 
   it('Live assist catalog still includes Sonnet and Terra', () => {
@@ -88,7 +88,7 @@ describe('Settings model catalog', () => {
     expect(MEMORY_MODELS).not.toEqual(NOTES_FAST_MODELS)
   })
 
-  it('shows the Z.ai catalog and limits the Notes picker to GLM-5.3 Flash on low reasoning', () => {
+  it('shows the Z.ai catalog and limits the Notes picker to GLM-5.3 Flash on low or high reasoning', () => {
     expect(MODEL_CATALOG.zai.map((m) => m.id)).toEqual([
       'glm-5.3-flash',
       'glm-5.3-flashx',
@@ -101,6 +101,6 @@ describe('Settings model catalog', () => {
     ])
     expect(DEFAULT_MODELS.zai).toBe('glm-5.3-flash')
     expect(settingsPickerModels('zai').map((m) => m.id)).toEqual(['glm-5.3-flash'])
-    expect(settingsPickerEffortLevels('zai', 'glm-5.3-flash')).toEqual(['low'])
+    expect(settingsPickerEffortLevels('zai', 'glm-5.3-flash')).toEqual(['low', 'high'])
   })
 })
