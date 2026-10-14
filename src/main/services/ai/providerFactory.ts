@@ -2,14 +2,17 @@ import type { AIProvider, AIProviderConfig, AIProviderName } from './types';
 import { DEFAULT_EFFORT, resolveCatalogModel } from './types';
 import { AnthropicProvider } from './anthropicProvider';
 import { OpenAIProvider } from './openaiProvider';
+import { ZaiProvider } from './zaiProvider';
 import { createLogger } from '../../logger';
 import {
   NOTES_FAST_MODELS,
+  PROVIDER_API_KEY_FIELD,
   resolveMemoryModel,
   resolveMemoryProvider,
   resolveNotesProvider,
   resolveSettingsPickerEffort,
   resolveSettingsPickerModel,
+  type AIProviderKeyField,
 } from '../../../shared/aiSlots';
 
 const log = createLogger('AI');
@@ -34,6 +37,9 @@ export function getProvider(config: AIProviderConfig): AIProvider {
     case 'openai':
       cachedProvider = new OpenAIProvider(config.apiKey, config.model, config.effort);
       break;
+    case 'zai':
+      cachedProvider = new ZaiProvider(config.apiKey, config.model, config.effort);
+      break;
     default:
       throw new Error(`Unknown AI provider: ${config.provider}`);
   }
@@ -48,16 +54,14 @@ export function clearProviderCache(): void {
   cachedConfigKey = '';
 }
 
-/** Cheap notes fallback (Haiku / Luna). Memory uses MEMORY_MODELS, not this. */
+/** Cheap notes fallback (Haiku / Luna / GLM Flash). Memory uses MEMORY_MODELS, not this. */
 export const FAST_MODELS: Record<AIProviderName, string> = NOTES_FAST_MODELS;
 
 function requireApiKey(
   provider: AIProviderName,
-  getApiKey: (key: 'openaiApiKey' | 'anthropicApiKey') => string,
+  getApiKey: (key: AIProviderKeyField) => string,
 ): string {
-  const apiKey = provider === 'openai'
-    ? getApiKey('openaiApiKey')
-    : getApiKey('anthropicApiKey');
+  const apiKey = getApiKey(PROVIDER_API_KEY_FIELD[provider]);
   if (!apiKey) {
     throw new Error(`No API key configured for ${provider}. Add it in Settings.`);
   }
@@ -90,7 +94,7 @@ export async function getNotesProvider(): Promise<AIProvider> {
 
 /**
  * Session memory compact. Not a Settings slot.
- * Same vendor as Live assist: Sonnet 5 (Anthropic) or GPT-5.6 Terra (OpenAI).
+ * Same vendor as Live assist: Sonnet 5 (Anthropic), GPT-5.6 Terra (OpenAI) or GLM-5.1 (Z.ai).
  */
 export async function getMemoryProvider(): Promise<AIProvider> {
   const { getSetting, getApiKey } = await import('../../store');

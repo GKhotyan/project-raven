@@ -1,12 +1,13 @@
-import type { AIProvider, AIMessage, AIContentPart, StreamCallbacks } from './types';
+import type { AIProvider, AIProviderName, AIMessage, AIContentPart, StreamCallbacks } from './types';
 import { buildOpenAIEffortParams, streamMaxTokensFor } from './types';
+import { PROVIDER_LABELS } from '../../../shared/aiSlots';
 import type OpenAI from 'openai';
 
 export class OpenAIProvider implements AIProvider {
-  readonly name = 'openai' as const;
-  private apiKey: string;
-  private model: string;
-  private effort?: string;
+  readonly name: AIProviderName = 'openai';
+  protected apiKey: string;
+  protected model: string;
+  protected effort?: string;
 
   constructor(apiKey: string, model: string, effort?: string) {
     this.apiKey = apiKey;
@@ -18,8 +19,7 @@ export class OpenAIProvider implements AIProvider {
     params: { system: string; messages: AIMessage[]; maxTokens?: number },
     callbacks: StreamCallbacks
   ): Promise<void> {
-    const OpenAI = (await import('openai')).default;
-    const client = new OpenAI({ apiKey: this.apiKey });
+    const client = await this.createClient();
 
     // Build as the SDK's discriminated ChatCompletionMessageParam union
     // rather than a widened { role: 'system' | 'user' | 'assistant' }
@@ -56,9 +56,7 @@ export class OpenAIProvider implements AIProvider {
     try {
       const stream = await client.chat.completions.create({
         model: this.model,
-        // GPT-5.x (every model in our catalog) rejects the legacy
-        // `max_tokens` with a 400 "Use 'max_completion_tokens' instead".
-        max_completion_tokens: params.maxTokens ?? streamMaxTokensFor('openai', this.model),
+        ...this.tokenLimitParams(params.maxTokens ?? streamMaxTokensFor(this.name, this.model)),
         messages: openaiMessages,
         stream: true,
         ...this.effortParams(),
@@ -78,7 +76,7 @@ export class OpenAIProvider implements AIProvider {
       const status = error != null && typeof error === 'object' && 'status' in error
         ? (error as { status: number }).status
         : undefined;
-      if (status === 401) errorMsg = 'Invalid OpenAI API key. Check settings.';
+      if (status === 401) errorMsg = `Invalid ${PROVIDER_LABELS[this.name]} API key. Check settings.`;
       else if (status === 429) errorMsg = 'Rate limited. Wait a moment and try again.';
       else if (error instanceof Error) errorMsg = `AI error: ${error.message}`;
       callbacks.onError(errorMsg);
@@ -91,8 +89,7 @@ export class OpenAIProvider implements AIProvider {
     prompt: string;
     maxTokens?: number;
   }): Promise<string> {
-    const OpenAI = (await import('openai')).default;
-    const client = new OpenAI({ apiKey: this.apiKey });
+    const client = await this.createClient();
 
     const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
     if (params.system) {
@@ -102,7 +99,7 @@ export class OpenAIProvider implements AIProvider {
 
     const response = await client.chat.completions.create({
       model: this.model,
-      max_completion_tokens: streamMaxTokensFor('openai', this.model),
+      ...this.tokenLimitParams(streamMaxTokensFor(this.name, this.model)),
       messages,
       ...this.effortParams(),
     });
@@ -110,11 +107,24 @@ export class OpenAIProvider implements AIProvider {
     return response.choices[0]?.message?.content?.trim() || '';
   }
 
-  private effortParams(): Record<string, unknown> {
+  protected async createClient(): Promise<OpenAI> {
+    const OpenAI = (await import('openai')).default;
+    return new OpenAI({ apiKey: this.apiKey });
+  }
+
+  /**
+   * GPT-5.x (every model in our catalog) rejects the legacy `max_tokens`
+   * with a 400 "Use 'max_completion_tokens' instead".
+   */
+  protected tokenLimitParams(maxTokens: number): Record<string, unknown> {
+    return { max_completion_tokens: maxTokens };
+  }
+
+  protected effortParams(): Record<string, unknown> {
     return buildOpenAIEffortParams(this.model, this.effort);
   }
 
-  private convertContent(
+  protected convertContent(
     content: string | AIContentPart[]
   ): string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> {
     if (typeof content === 'string') return content;

@@ -24,6 +24,7 @@ vi.mock('../../main/logger', () => ({
 import { getProvider, clearProviderCache, getProviderFromStore, getFastProvider, getMemoryProvider, getNotesProvider } from '../services/ai/providerFactory'
 import { AnthropicProvider } from '../services/ai/anthropicProvider'
 import { OpenAIProvider } from '../services/ai/openaiProvider'
+import { ZaiProvider } from '../services/ai/zaiProvider'
 
 describe('providerFactory', () => {
   beforeEach(() => {
@@ -504,6 +505,50 @@ describe('providerFactory', () => {
       await expect(getNotesProvider()).rejects.toThrow(
         'No API key configured for openai. Add it in Settings.'
       )
+    })
+  })
+
+  describe('Z.ai', () => {
+    it('creates ZaiProvider for zai config', () => {
+      const provider = getProvider({ provider: 'zai', model: 'glm-5.2', apiKey: 'zai-test-key' })
+
+      expect(provider).toBeInstanceOf(ZaiProvider)
+      expect(provider.name).toBe('zai')
+    })
+
+    it('getProviderFromStore reads zaiApiKey when aiProvider is zai', async () => {
+      mockStoreGet.mockImplementation((key: string) => ({
+        aiProvider: 'zai',
+        aiModel: 'glm-5.2',
+        aiEffort: 'high',
+        zaiApiKey: 'zai-test-key',
+        anthropicApiKey: 'ant-should-not-be-used',
+      } as Record<string, unknown>)[key])
+
+      const provider = await getProviderFromStore()
+
+      expect(provider).toBeInstanceOf(ZaiProvider)
+    })
+
+    it('throws instead of borrowing the Anthropic key when the Z.ai key is missing', async () => {
+      mockStoreGet.mockImplementation((key: string) => ({
+        aiProvider: 'zai',
+        aiModel: 'glm-5.2',
+        anthropicApiKey: 'ant-key',
+      } as Record<string, unknown>)[key])
+
+      await expect(getProviderFromStore()).rejects.toThrow('No API key configured for zai')
+    })
+
+    it('getMemoryProvider uses GLM-5.1 on the Z.ai key', async () => {
+      mockStoreGet.mockImplementation((key: string) => ({
+        aiProvider: 'zai',
+        zaiApiKey: 'zai-test-key',
+      } as Record<string, unknown>)[key])
+
+      const provider = await getMemoryProvider()
+
+      expect(provider).toBeInstanceOf(ZaiProvider)
     })
   })
 })
