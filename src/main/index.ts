@@ -559,6 +559,32 @@ app.whenReady().then(() => {
     return result
   })
 
+  inflightHandle('sessions:send-summary', async (sessionId: string, channel: string) => {
+    const { isSummaryChannel, buildMeetingKey, extractPublishableSummary } = await import(
+      '../shared/summaryPublish'
+    )
+    if (!isSummaryChannel(channel)) return { ok: false, error: 'Unknown channel' }
+
+    const url = ((getSetting('n8nWebhookUrl') as string) || '').trim()
+    const token = ((getSetting('n8nWebhookToken') as string) || '').trim()
+    if (!url || !token) {
+      return { ok: false, error: 'Set the n8n webhook URL and token in Settings → Integrations.' }
+    }
+
+    const session = databaseService.getSession(sessionId)
+    if (!session) return { ok: false, error: 'Session not found' }
+    const summary = extractPublishableSummary(session.summary)
+    if (!summary) return { ok: false, error: 'This session has no summary to send.' }
+
+    const { publishSummary } = await import('./services/summaryPublishService')
+    return publishSummary({
+      url,
+      token,
+      meetingKey: buildMeetingKey(channel, session.startedAt),
+      summary,
+    })
+  })
+
   inflightHandle(
     'sessions:export',
     async (sessionId: string, format: 'markdown' | 'pdf', includeTranscript?: boolean) => {

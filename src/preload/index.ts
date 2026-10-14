@@ -73,6 +73,7 @@ contextBridge.exposeInMainWorld('raven', {
     delete: (id: string) => ipcRenderer.invoke('sessions:delete', id),
     regenerateSummary: (id: string) => ipcRenderer.invoke('sessions:regenerate-summary', id),
     draftFollowup: (id: string) => ipcRenderer.invoke('sessions:draft-followup', id),
+    sendSummary: (id: string, channel: string) => ipcRenderer.invoke('sessions:send-summary', id, channel),
     export: (id: string, format: 'markdown' | 'pdf', includeTranscript?: boolean) =>
       ipcRenderer.invoke('sessions:export', id, format, includeTranscript),
     // Streaming Ask. Returns a promise that resolves with the final result

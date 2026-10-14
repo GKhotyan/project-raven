@@ -1,0 +1,72 @@
+import { describe, expect, it } from 'vitest'
+import { buildMeetingKey, extractPublishableSummary, isSummaryChannel } from '../../shared/summaryPublish'
+
+describe('isSummaryChannel', () => {
+  it('accepts only the known channels', () => {
+    expect(isSummaryChannel('cvm-daily')).toBe(true)
+    expect(isSummaryChannel('hrm-daily')).toBe(true)
+    expect(isSummaryChannel('pim-daily')).toBe(true)
+    expect(isSummaryChannel('other')).toBe(false)
+    expect(isSummaryChannel(undefined)).toBe(false)
+  })
+})
+
+describe('buildMeetingKey', () => {
+  it('joins the channel and the local date of the session', () => {
+    const startedAt = new Date(2026, 9, 14, 9, 30).getTime()
+    expect(buildMeetingKey('hrm-daily', startedAt)).toBe('hrm-daily:2026-10-14')
+  })
+
+  it('zero-pads month and day', () => {
+    const startedAt = new Date(2026, 0, 5, 23, 59).getTime()
+    expect(buildMeetingKey('cvm-daily', startedAt)).toBe('cvm-daily:2026-01-05')
+  })
+})
+
+describe('extractPublishableSummary', () => {
+  it('keeps the leading prose and Key points, drops Action items', () => {
+    const summary = [
+      'Обсудили метрики.',
+      '',
+      'Второй абзац.',
+      '',
+      '## Key points',
+      '',
+      '- Пункт один',
+      '',
+      '## Action items',
+      '',
+      '- **Антон** — завести задачи',
+    ].join('\n')
+
+    expect(extractPublishableSummary(summary)).toBe(
+      ['## Summary', '', 'Обсудили метрики.', '', 'Второй абзац.', '', '## Key points', '', '- Пункт один'].join('\n'),
+    )
+  })
+
+  it('keeps an explicit Summary section and drops other sections', () => {
+    const summary = [
+      '## Summary',
+      'Text',
+      '### Decisions',
+      '- Ship it',
+      '## **Key Points:**',
+      '- One',
+      '## Open questions',
+      '- Why',
+    ].join('\n')
+
+    expect(extractPublishableSummary(summary)).toBe(
+      ['## Summary', 'Text', '## **Key Points:**', '- One'].join('\n'),
+    )
+  })
+
+  it('titles plain prose as Summary even without other sections', () => {
+    expect(extractPublishableSummary('Just a recap.\n')).toBe('## Summary\n\nJust a recap.')
+  })
+
+  it('returns an empty string when nothing publishable is left', () => {
+    expect(extractPublishableSummary('## Action items\n- Do it')).toBe('')
+    expect(extractPublishableSummary(null)).toBe('')
+  })
+})

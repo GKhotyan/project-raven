@@ -6,6 +6,7 @@ import { createLogger } from '../../lib/logger'
 import { isPlaceholderSessionTitle } from '../../../../shared/sessionDisplay'
 import { parseActionItems, type ActionItem } from '../../../../shared/actionItems'
 import { computeTalkRatio } from '../../../../shared/talkRatio'
+import { SUMMARY_CHANNELS, type SummaryChannel } from '../../../../shared/summaryPublish'
 import {
   findSegmentBreaks,
   parseSessionSegments,
@@ -780,7 +781,7 @@ function SummaryTab({
         title="Click to edit"
       >
       <div className="flex items-center justify-between mb-2">
-        <div />
+        <SendSummaryControl sessionId={sessionId} />
         <button
           onClick={(e) => { e.stopPropagation(); setEditing(true) }}
           className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 hover:text-blue-500 transition-all flex items-center gap-1"
@@ -826,6 +827,63 @@ function SummaryTab({
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// Sends the finished summary (prose + Key points) to the n8n webhook that
+// publishes it to Mattermost under the picked channel.
+function SendSummaryControl({ sessionId }: { sessionId: string }) {
+  const [channel, setChannel] = useState<SummaryChannel>('cvm-daily')
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setStatus('idle')
+    setError(null)
+  }, [sessionId])
+
+  const handleSend = async () => {
+    setStatus('sending')
+    setError(null)
+    try {
+      const result = await window.raven.sessions.sendSummary(sessionId, channel)
+      if (result.ok) {
+        setStatus('sent')
+        setTimeout(() => setStatus((s) => (s === 'sent' ? 'idle' : s)), 2000)
+      } else {
+        setStatus('failed')
+        setError(result.error || 'Could not send the summary.')
+      }
+    } catch (err) {
+      log.error('Failed to send summary:', err)
+      setStatus('failed')
+      setError('Could not send the summary.')
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => void handleSend()}
+        disabled={status === 'sending'}
+        className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+      >
+        {status === 'sending' ? 'Sending...' : status === 'sent' ? 'Sent!' : 'Send summary'}
+      </button>
+      <select
+        value={channel}
+        onChange={(e) => setChannel(e.target.value as SummaryChannel)}
+        disabled={status === 'sending'}
+        className="px-2 py-1.5 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+      >
+        {SUMMARY_CHANNELS.map((value) => (
+          <option key={value} value={value}>
+            {value}
+          </option>
+        ))}
+      </select>
+      {status === 'failed' && error && <span className="text-xs text-red-500">{error}</span>}
     </div>
   )
 }
