@@ -17,8 +17,10 @@ const ANTHROPIC_OPUS_45: EffortLevel[] = ['low', 'medium', 'high']
 // Every GPT-5.x model accepts none/low/medium/high/xhigh; `max` is
 // Anthropic-only (the API returns 400 for it on all three 5.6 models).
 const OPENAI_GPT5: EffortLevel[] = ['none', 'low', 'medium', 'high', 'xhigh']
-// GLM thinking is on/off: none → disabled, high → enabled.
+// GLM up to 5.2: thinking is on/off (none → disabled, high → enabled).
+// GLM-5.3 always thinks; depth is reasoning_effort low/high/max.
 const ZAI_THINKING: EffortLevel[] = ['none', 'high']
+const ZAI_REASONING: EffortLevel[] = ['low', 'high', 'max']
 
 export const MODEL_CATALOG: Record<AIProviderName, ModelOption[]> = {
   anthropic: [
@@ -43,10 +45,13 @@ export const MODEL_CATALOG: Record<AIProviderName, ModelOption[]> = {
     { id: 'gpt-5.2', label: 'GPT-5.2', effort: OPENAI_GPT5 },
   ],
   zai: [
-    { id: 'glm-4.7-flash', label: 'GLM-4.7 Flash', effort: ZAI_THINKING },
+    { id: 'glm-5.3-flash', label: 'GLM-5.3 Flash', effort: ZAI_REASONING },
+    { id: 'glm-5.3-flashx', label: 'GLM-5.3 FlashX', effort: ZAI_REASONING },
+    { id: 'glm-5.3', label: 'GLM-5.3', effort: ZAI_REASONING },
     { id: 'glm-5.2', label: 'GLM-5.2', effort: ZAI_THINKING },
     { id: 'glm-5.1', label: 'GLM-5.1', effort: ZAI_THINKING },
     { id: 'glm-4.7', label: 'GLM-4.7', effort: ZAI_THINKING },
+    { id: 'glm-4.7-flash', label: 'GLM-4.7 Flash', effort: ZAI_THINKING },
     { id: 'glm-5v-turbo', label: 'GLM-5V Turbo (vision)', effort: ZAI_THINKING },
   ],
 }
@@ -54,7 +59,7 @@ export const MODEL_CATALOG: Record<AIProviderName, ModelOption[]> = {
 export const DEFAULT_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-haiku-4-5',
   openai: 'gpt-5.6-luna',
-  zai: 'glm-4.7-flash',
+  zai: 'glm-5.3-flash',
 }
 
 export const DEFAULT_EFFORT: EffortLevel = 'low'

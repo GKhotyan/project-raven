@@ -88,16 +88,19 @@ describe('Settings model catalog', () => {
     expect(MEMORY_MODELS).not.toEqual(NOTES_FAST_MODELS)
   })
 
-  it('shows the Z.ai catalog and limits the Notes picker to GLM-4.7 Flash with thinking off', () => {
+  it('shows the Z.ai catalog and limits the Notes picker to GLM-5.3 Flash on low reasoning', () => {
     expect(MODEL_CATALOG.zai.map((m) => m.id)).toEqual([
-      'glm-4.7-flash',
+      'glm-5.3-flash',
+      'glm-5.3-flashx',
+      'glm-5.3',
       'glm-5.2',
       'glm-5.1',
       'glm-4.7',
+      'glm-4.7-flash',
       'glm-5v-turbo',
     ])
-    expect(DEFAULT_MODELS.zai).toBe('glm-4.7-flash')
-    expect(settingsPickerModels('zai').map((m) => m.id)).toEqual(['glm-4.7-flash'])
-    expect(settingsPickerEffortLevels('zai', 'glm-4.7-flash')).toEqual(['none'])
+    expect(DEFAULT_MODELS.zai).toBe('glm-5.3-flash')
+    expect(settingsPickerModels('zai').map((m) => m.id)).toEqual(['glm-5.3-flash'])
+    expect(settingsPickerEffortLevels('zai', 'glm-5.3-flash')).toEqual(['low'])
   })
 })

@@ -32,7 +32,7 @@ export const PROVIDER_API_KEY_FIELD: Record<AIProviderName, AIProviderKeyField> 
 export const NOTES_FAST_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-haiku-4-5',
   openai: 'gpt-5.6-luna',
-  zai: 'glm-4.7-flash',
+  zai: 'glm-5.3-flash',
 }
 
 /** System memory compact. Not user-configurable. Not the notes cheap default. */

@@ -305,45 +305,65 @@ describe('buildOpenAIEffortParams', () => {
 })
 
 describe('Z.ai catalog', () => {
-  it('lists GLM models with Flash as the cheap default', () => {
+  it('lists GLM models with GLM-5.3 Flash as the cheap default', () => {
     expect(PROVIDER_MODELS.zai).toEqual([
-      'glm-4.7-flash',
+      'glm-5.3-flash',
+      'glm-5.3-flashx',
+      'glm-5.3',
       'glm-5.2',
       'glm-5.1',
       'glm-4.7',
+      'glm-4.7-flash',
       'glm-5v-turbo',
     ])
-    expect(DEFAULT_MODELS.zai).toBe('glm-4.7-flash')
-    expect(NOTES_FAST_MODELS.zai).toBe('glm-4.7-flash')
-    expect(FAST_MODELS.zai).toBe('glm-4.7-flash')
+    expect(DEFAULT_MODELS.zai).toBe('glm-5.3-flash')
+    expect(NOTES_FAST_MODELS.zai).toBe('glm-5.3-flash')
+    expect(FAST_MODELS.zai).toBe('glm-5.3-flash')
     expect(MEMORY_MODELS.zai).toBe('glm-5.1')
     expect(ZAI_BASE_URL).toBe('https://api.z.ai/api/paas/v4/')
   })
 
-  it('treats thinking as an on/off switch', () => {
-    for (const id of PROVIDER_MODELS.zai) {
+  it('gives GLM-5.3 models a reasoning ladder and older GLM an on/off switch', () => {
+    for (const id of ['glm-5.3-flash', 'glm-5.3-flashx', 'glm-5.3']) {
+      expect(effortLevelsForModel('zai', id)).toEqual(['low', 'high', 'max'])
+    }
+    for (const id of ['glm-5.2', 'glm-5.1', 'glm-4.7', 'glm-4.7-flash', 'glm-5v-turbo']) {
       expect(effortLevelsForModel('zai', id)).toEqual(['none', 'high'])
     }
-    // `low` carried over from an Anthropic slot is not on the GLM ladder.
+    // `low` carried over from an Anthropic slot is not on the old GLM ladder.
     expect(resolveEffort('zai', 'glm-5.2', 'low')).toBe('none')
     expect(resolveEffort('zai', 'glm-5.2', 'high')).toBe('high')
+    // `none` carried over from an older GLM slot cannot disable 5.3 thinking.
+    expect(resolveEffort('zai', 'glm-5.3', 'none')).toBe('low')
   })
 
-  it('always sends the thinking switch, defaulting to disabled', () => {
+  it('always sends the thinking switch on older GLM, defaulting to disabled', () => {
     expect(buildZaiThinkingParams('glm-5.2', 'none')).toEqual({ thinking: { type: 'disabled' } })
     expect(buildZaiThinkingParams('glm-5.2', 'high')).toEqual({ thinking: { type: 'enabled' } })
     expect(buildZaiThinkingParams('glm-5.2', DEFAULT_EFFORT)).toEqual({ thinking: { type: 'disabled' } })
     expect(buildZaiThinkingParams('glm-5.2', undefined)).toEqual({ thinking: { type: 'disabled' } })
   })
 
-  it('only GLM-5V takes images', () => {
+  it('keeps GLM-5.3 thinking on and sends reasoning_effort instead, defaulting to low', () => {
+    expect(buildZaiThinkingParams('glm-5.3-flash', 'low')).toEqual({ thinking: { type: 'enabled' }, reasoning_effort: 'low' })
+    expect(buildZaiThinkingParams('glm-5.3', 'max')).toEqual({ thinking: { type: 'enabled' }, reasoning_effort: 'max' })
+    expect(buildZaiThinkingParams('glm-5.3-flash', 'none')).toEqual({ thinking: { type: 'enabled' }, reasoning_effort: 'low' })
+    expect(buildZaiThinkingParams('glm-5.3-flash', undefined)).toEqual({ thinking: { type: 'enabled' }, reasoning_effort: 'low' })
+  })
+
+  it('takes images on GLM-5V and the GLM-5.3 Flash models only', () => {
     expect(zaiModelAcceptsImages('glm-5v-turbo')).toBe(true)
+    expect(zaiModelAcceptsImages('glm-5.3-flash')).toBe(true)
+    expect(zaiModelAcceptsImages('glm-5.3-flashx')).toBe(true)
+    expect(zaiModelAcceptsImages('glm-5.3')).toBe(false)
     expect(zaiModelAcceptsImages('glm-5.2')).toBe(false)
     expect(zaiModelAcceptsImages('glm-4.7-flash')).toBe(false)
   })
 
-  it('uses official GLM windows: 1M for GLM-5.2, 200K for the rest, 128K output', () => {
-    expect(contextWindowFor('zai', 'glm-5.2')).toBe(1_000_000)
+  it('uses official GLM windows: 1M for GLM-5.2 and GLM-5.3, 200K for the rest, 128K output', () => {
+    for (const id of ['glm-5.3-flash', 'glm-5.3-flashx', 'glm-5.3', 'glm-5.2']) {
+      expect(contextWindowFor('zai', id)).toBe(1_000_000)
+    }
     expect(contextWindowFor('zai', 'glm-5.1')).toBe(200_000)
     expect(contextWindowFor('zai', 'glm-4.7')).toBe(200_000)
     expect(contextWindowFor('zai', 'glm-4.7-flash')).toBe(200_000)

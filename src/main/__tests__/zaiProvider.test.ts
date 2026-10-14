@@ -65,6 +65,33 @@ describe('ZaiProvider', () => {
     expect(payload).not.toHaveProperty('max_completion_tokens')
   })
 
+  it('sends reasoning_effort with thinking on for GLM-5.3 Flash (Notes default)', async () => {
+    const provider = new ZaiProvider('k', 'glm-5.3-flash', 'low')
+    mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'TITLE: t' } }] })
+
+    await provider.generateShort({ prompt: 'notes' })
+
+    const payload = mockCreate.mock.calls[0][0] as Record<string, unknown>
+    expect(payload.thinking).toEqual({ type: 'enabled' })
+    expect(payload.reasoning_effort).toBe('low')
+  })
+
+  it('keeps image_url parts for GLM-5.3 Flash', async () => {
+    const provider = new ZaiProvider('k', 'glm-5.3-flash')
+    mockCreate.mockResolvedValueOnce(emptyStream())
+
+    await provider.streamResponse(
+      { system: 'S', messages: [{ role: 'user', content: [{ type: 'text', text: 'Look' }, PNG] }] },
+      callbacks(),
+    )
+
+    const payload = mockCreate.mock.calls[0][0] as { messages: Array<{ role: string; content: unknown }> }
+    expect(payload.messages[1].content).toEqual([
+      { type: 'text', text: 'Look' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,iVBORw0KGgo=' } },
+    ])
+  })
+
   it('replaces screenshots with a note for text-only GLM models', async () => {
     const provider = new ZaiProvider('k', 'glm-5.2')
     mockCreate.mockResolvedValueOnce(emptyStream())

@@ -63,10 +63,13 @@ const ANTHROPIC_NO_XHIGH: EffortLevel[] = ['low', 'medium', 'high', 'max'];
 const ANTHROPIC_OPUS_45: EffortLevel[] = ['low', 'medium', 'high'];
 const OPENAI_GPT5: EffortLevel[] = ['none', 'low', 'medium', 'high', 'xhigh'];
 
-// Z.ai: https://docs.z.ai/guides/llm/glm-5.2 — thinking is a switch,
-// `thinking: { type: 'enabled' | 'disabled' }`, default enabled. We map
-// none → disabled, high → enabled and never send `reasoning_effort`.
+// Z.ai: https://docs.z.ai/guides/llm/glm-5.2 — up to GLM-5.2 thinking is a
+// switch, `thinking: { type: 'enabled' | 'disabled' }`, default enabled. We
+// map none → disabled, high → enabled and never send `reasoning_effort`.
+// GLM-5.3 (https://docs.z.ai/guides/llm/glm-5.3): thinking cannot be
+// disabled (400 on `disabled`); depth is `reasoning_effort` low/high/max.
 const ZAI_THINKING: EffortLevel[] = ['none', 'high'];
+const ZAI_REASONING: EffortLevel[] = ['low', 'high', 'max'];
 
 export const ZAI_BASE_URL = 'https://api.z.ai/api/paas/v4/';
 
@@ -93,10 +96,13 @@ export const MODEL_CATALOG: Record<AIProviderName, ModelOption[]> = {
     { id: 'gpt-5.2', label: 'GPT-5.2', effort: OPENAI_GPT5 },
   ],
   zai: [
-    { id: 'glm-4.7-flash', label: 'GLM-4.7 Flash', effort: ZAI_THINKING },
+    { id: 'glm-5.3-flash', label: 'GLM-5.3 Flash', effort: ZAI_REASONING },
+    { id: 'glm-5.3-flashx', label: 'GLM-5.3 FlashX', effort: ZAI_REASONING },
+    { id: 'glm-5.3', label: 'GLM-5.3', effort: ZAI_REASONING },
     { id: 'glm-5.2', label: 'GLM-5.2', effort: ZAI_THINKING },
     { id: 'glm-5.1', label: 'GLM-5.1', effort: ZAI_THINKING },
     { id: 'glm-4.7', label: 'GLM-4.7', effort: ZAI_THINKING },
+    { id: 'glm-4.7-flash', label: 'GLM-4.7 Flash', effort: ZAI_THINKING },
     { id: 'glm-5v-turbo', label: 'GLM-5V Turbo (vision)', effort: ZAI_THINKING },
   ],
 };
@@ -110,7 +116,7 @@ export const PROVIDER_MODELS: Record<AIProviderName, string[]> = {
 export const DEFAULT_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-haiku-4-5',
   openai: 'gpt-5.6-luna',
-  zai: 'glm-4.7-flash',
+  zai: 'glm-5.3-flash',
 };
 
 export const DEFAULT_EFFORT: EffortLevel = 'low';
@@ -159,7 +165,7 @@ export function contextWindowFor(provider: AIProviderName, model: string): numbe
     return CONTEXT_1M;
   }
   if (provider === 'zai') {
-    return model === 'glm-5.2' ? CONTEXT_1M : CONTEXT_200K;
+    return model === 'glm-5.2' || model.startsWith('glm-5.3') ? CONTEXT_1M : CONTEXT_200K;
   }
   if (model === 'gpt-5.2' || model === 'gpt-5.4-mini') return CONTEXT_400K;
   return CONTEXT_1050K;
@@ -282,6 +288,10 @@ export function buildZaiThinkingParams(
 ): Record<string, unknown> {
   const effort = resolveEffort('zai', model, requested);
   if (!effort) return {};
+  if (!effortLevelsForModel('zai', model)?.includes('none')) {
+    // GLM-5.3: thinking is always on; depth goes in reasoning_effort.
+    return { thinking: { type: 'enabled' }, reasoning_effort: effort };
+  }
   // Always send the switch. Omitting it falls through to the API default
   // (enabled), which makes the `none` default slow and the picker lie.
   return { thinking: { type: effort === 'none' ? 'disabled' : 'enabled' } };
@@ -289,5 +299,5 @@ export function buildZaiThinkingParams(
 
 /** Text-only GLM models answer 400 on image_url parts. */
 export function zaiModelAcceptsImages(model: string): boolean {
-  return model === 'glm-5v-turbo';
+  return model === 'glm-5v-turbo' || model === 'glm-5.3-flash' || model === 'glm-5.3-flashx';
 }
