@@ -323,9 +323,6 @@ function boot(): void {
 
   sessionManager.setWindows(dashboard, overlay)
   sessionManager.recoverSession()
-  if (hasApiKeys()) {
-    void sessionManager.retryMissingNotes()
-  }
 
   audioManager.setWindows(dashboard, overlay)
 

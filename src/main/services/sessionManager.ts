@@ -15,10 +15,7 @@ import { normalizeActionItemsForStorage } from '../../shared/actionItems';
 import { getSetting } from '../store';
 import { createLogger } from '../logger';
 import {
-  NOTES_RETRY_LIMIT,
-  NOTES_RETRY_SCAN,
   SESSION_AUTOSAVE_INTERVAL_MS,
-  SUMMARY_MIN_TRANSCRIPT_LENGTH,
 } from '../constants';
 import {
   isPlaceholderSessionTitle,
@@ -246,7 +243,8 @@ class SessionManager {
 
     // Insights and the follow-up email described only the earlier sitting;
     // clear them so the dashboard offers to regenerate over the whole
-    // session. Summary/action items are regenerated automatically at end.
+    // session. The summary is kept (it may hold user edits) and can be
+    // regenerated on demand from the dashboard.
     databaseService.updateSession(sessionId, {
       endedAt: null,
       segmentsJson,
@@ -413,7 +411,6 @@ class SessionManager {
     const endedAt = Date.now();
     const durationSeconds = this.elapsedSeconds(endedAt);
     const finalTranscript = this.activeSession.transcript.filter((e) => e.isFinal);
-    const wasResumed = this.resumed;
     const segmentsJson = this.closedSegmentsJson(endedAt);
     this.resetResumeState(endedAt);
 
@@ -449,10 +446,6 @@ class SessionManager {
 
     const sessionId = this.activeSession.id;
     const modeId = this.activeSession.modeId;
-    const displayName = getSetting('displayName') || 'You';
-    const transcriptText = finalTranscript
-      .map((e) => `${e.source === 'mic' ? displayName : 'Them'}: ${e.text}`)
-      .join('\n');
     log.info('Session ended:', sessionId, 'duration:', durationSeconds, 's');
 
     // Server-attributed product event. Mirrors the start path
@@ -472,80 +465,47 @@ class SessionManager {
     this.broadcastSessionUpdate();
     this.sendDashboard('sessions:list-updated');
 
-    void this.generateAndStoreNotes(sessionId, {
-      transcriptText,
-      modeId,
-      fallbackTitle: endedSession.title,
-      // A resumed session already has a title the user has been living
-      // with (and may have edited); regenerate the notes, not the name.
-      preserveTitle: wasResumed && !isPlaceholderSessionTitle(endedSession.title),
-      // If the earlier sitting's notes are still being written, run after
-      // them so the two-sitting notes are what ends up stored.
-      afterInFlight: wasResumed,
-    });
+    // The summary is generated on demand from the dashboard; here we only
+    // name the session (unless it already has a real title) and index it.
+    void this.finishEndedSession(sessionId, endedSession.title);
 
     return endedSession;
   }
 
   /**
-   * Generate title + summary for a session. Dedupes in-flight work so
-   * session-end, boot retry, and the regenerate IPC share one job.
-   * `afterInFlight` instead queues a fresh run behind the current job,
-   * for callers whose input has changed since it started.
+   * Post-end housekeeping that does not need the notes model's summary:
+   * an auto title for unnamed sessions, local indexing, and cloud sync.
    */
-  generateAndStoreNotes(
-    sessionId: string,
-    preloaded?: {
-      transcriptText: string;
-      modeId: string | null;
-      fallbackTitle: string;
-      preserveTitle?: boolean;
-      afterInFlight?: boolean;
-    },
-  ): Promise<boolean> {
-    const existing = this.notesJobs.get(sessionId);
-    if (existing && !preloaded?.afterInFlight) return existing;
+  private async finishEndedSession(sessionId: string, title: string): Promise<void> {
+    if (isPlaceholderSessionTitle(title)) {
+      try {
+        await this.generateTitle(sessionId);
+      } catch (err) {
+        log.error('Title generation after session end failed:', err);
+      }
+    }
 
-    const run = (): Promise<boolean> => this.runNotesGeneration(sessionId, preloaded);
-    const job: Promise<boolean> = (existing ? existing.then(run, run) : run()).finally(() => {
-      // Only clear our own entry; a chained successor may have replaced it.
+    // Fire-and-forget local transcript indexing for ask-my-meetings.
+    void indexSession(sessionId).catch((err) => {
+      log.error('Session indexing failed (non-fatal):', err);
+    });
+
+    this.syncSessionToCloud(sessionId);
+  }
+
+  /**
+   * Generate summary (+ title for unnamed sessions) on user request.
+   * Dedupes in-flight work so repeated clicks share one job.
+   */
+  generateAndStoreNotes(sessionId: string): Promise<boolean> {
+    const existing = this.notesJobs.get(sessionId);
+    if (existing) return existing;
+
+    const job: Promise<boolean> = this.runNotesGeneration(sessionId).finally(() => {
       if (this.notesJobs.get(sessionId) === job) this.notesJobs.delete(sessionId);
     });
     this.notesJobs.set(sessionId, job);
     return job;
-  }
-
-  /**
-   * On boot, retry notes for ended sessions that still have a transcript
-   * but no summary. Session-end generation is fire-and-forget; quitting
-   * or a thrown notes-slot error left those rows as Untitled forever.
-   */
-  async retryMissingNotes(): Promise<number> {
-    let started = 0;
-    const rows = databaseService.getAllSessionSummaries(NOTES_RETRY_SCAN);
-    for (const row of rows) {
-      if (started >= NOTES_RETRY_LIMIT) break;
-      if (row.summary?.trim()) continue;
-      if (!row.endedAt) continue;
-      if ((row.durationSeconds ?? 0) <= 0) continue;
-
-      const session = databaseService.getSession(row.id);
-      if (!session?.transcript?.length) continue;
-
-      const transcriptText = this.formatTranscript(session.transcript);
-      if (transcriptText.trim().length < SUMMARY_MIN_TRANSCRIPT_LENGTH) continue;
-
-      started += 1;
-      await this.generateAndStoreNotes(row.id, {
-        transcriptText,
-        modeId: session.modeId,
-        fallbackTitle: session.title,
-      });
-    }
-    if (started > 0) {
-      log.info(`Retried notes generation for ${started} session(s) missing a summary`);
-    }
-    return started;
   }
 
   private formatTranscript(transcript: TranscriptEntry[]): string {
@@ -560,24 +520,16 @@ class SessionManager {
     this.dashboardWindow?.webContents?.send(channel, ...args);
   }
 
-  private async runNotesGeneration(
-    sessionId: string,
-    preloaded?: { transcriptText: string; modeId: string | null; fallbackTitle: string; preserveTitle?: boolean },
-  ): Promise<boolean> {
+  private async runNotesGeneration(sessionId: string): Promise<boolean> {
     this.sendDashboard('sessions:summary-pending', sessionId);
     try {
-      let transcriptText = preloaded?.transcriptText;
-      let modeId = preloaded?.modeId ?? null;
-      let fallbackTitle = preloaded?.fallbackTitle ?? PLACEHOLDER_SESSION_TITLE;
-      const preserveTitle = preloaded?.preserveTitle === true;
-
-      if (!transcriptText) {
-        const session = databaseService.getSession(sessionId);
-        if (!session?.transcript?.length) return false;
-        transcriptText = this.formatTranscript(session.transcript);
-        modeId = session.modeId;
-        fallbackTitle = session.title;
-      }
+      const session = databaseService.getSession(sessionId);
+      if (!session?.transcript?.length) return false;
+      const transcriptText = this.formatTranscript(session.transcript);
+      const modeId = session.modeId;
+      const fallbackTitle = session.title || PLACEHOLDER_SESSION_TITLE;
+      // Keep a title the user has been living with (or edited).
+      const preserveTitle = !isPlaceholderSessionTitle(session.title);
 
       if (!transcriptText.trim()) return false;
 

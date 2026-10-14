@@ -80,7 +80,6 @@ export function SessionDetail({ session, onBack, onUpdateTitle, isRecording = fa
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [notesStatus, setNotesStatus] = useState<'idle' | 'generating' | 'failed'>('idle')
   const [notesError, setNotesError] = useState<string | null>(null)
-  const notesAttemptedForId = useRef<string | null>(null)
   const currentSessionIdRef = useRef(session.id)
   currentSessionIdRef.current = session.id
   const titleRef = useRef<HTMLDivElement>(null)
@@ -127,7 +126,6 @@ export function SessionDetail({ session, onBack, onUpdateTitle, isRecording = fa
     setCurrentInsightsJson(session.insightsJson ?? null)
     setNotesStatus('idle')
     setNotesError(null)
-    notesAttemptedForId.current = null
     // session.insightsJson intentionally omitted: this effect resets UI
     // state on SESSION switch only. Re-running every time insightsJson
     // changes would clobber in-flight user edits of the insights panel.
@@ -251,7 +249,6 @@ export function SessionDetail({ session, onBack, onUpdateTitle, isRecording = fa
     })
     .join('\n')
   const hasTranscript = transcriptText.trim().length > 0
-  const needsSummary = hasTranscript && !session.summary?.trim()
   const showTitleGenerating =
     isPlaceholderSessionTitle(session.title) && hasTranscript && notesStatus === 'generating'
 
@@ -269,7 +266,9 @@ export function SessionDetail({ session, onBack, onUpdateTitle, isRecording = fa
     try {
       const ok = await window.raven.sessions.regenerateSummary(requestId)
       if (currentSessionIdRef.current !== requestId) return
-      if (ok !== true && !session.summary?.trim()) {
+      if (ok === true) {
+        setNotesStatus('idle')
+      } else {
         setNotesStatus('failed')
         setNotesError(
           'Could not generate a title or summary. Check that the notes model API key is set in Settings, then try again.',
@@ -286,15 +285,6 @@ export function SessionDetail({ session, onBack, onUpdateTitle, isRecording = fa
       )
     }
   }
-
-  useEffect(() => {
-    if (!needsSummary) return
-    if (notesAttemptedForId.current === session.id) return
-    notesAttemptedForId.current = session.id
-    void generateNotes()
-    // generateNotes is recreated each render; we only want one auto-attempt per session id.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.id, needsSummary])
 
   const loadMessages = async () => {
     setLoadingMessages(true)
@@ -570,10 +560,7 @@ export function SessionDetail({ session, onBack, onUpdateTitle, isRecording = fa
                       generating={notesStatus === 'generating'}
                       failed={notesStatus === 'failed'}
                       error={notesError}
-                      onRetry={() => {
-                        notesAttemptedForId.current = session.id
-                        void generateNotes()
-                      }}
+                      onGenerate={() => void generateNotes()}
                     />
                   )}
                   {activeTab === 'transcript' && (
@@ -648,7 +635,7 @@ function SummaryTab({
   generating,
   failed,
   error,
-  onRetry,
+  onGenerate,
 }: {
   summary: string | null
   actionItemsJson: string | null
@@ -658,7 +645,7 @@ function SummaryTab({
   generating: boolean
   failed: boolean
   error: string | null
-  onRetry: () => void
+  onGenerate: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [editText, setEditText] = useState(summary || '')
@@ -706,7 +693,7 @@ function SummaryTab({
           {error || 'The transcript is saved. Usage and transcript tabs are available while this is fixed.'}
         </p>
         <button
-          onClick={onRetry}
+          onClick={onGenerate}
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
         >
           Try again
@@ -716,7 +703,33 @@ function SummaryTab({
   }
 
   if (!savedSummary && hasTranscript && !editing) {
-    return <SummarySkeleton />
+    return (
+      <div className="text-center py-12">
+        <div className="mb-4">
+          <svg className="w-12 h-12 mx-auto text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <h3 className="text-gray-900 font-medium mb-2">AI Meeting Summary</h3>
+        <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
+          Generate a structured summary and action items from your meeting transcript.
+        </p>
+        <button
+          onClick={onGenerate}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          Generate Summary
+        </button>
+        <div className="mt-4">
+          <button
+            onClick={() => setEditing(true)}
+            className="text-xs text-gray-400 hover:text-blue-500 transition-colors"
+          >
+            or write your own notes
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (editing) {
@@ -800,6 +813,19 @@ function SummaryTab({
         </div>
       ))}
       </div>
+      {hasTranscript && (
+        <div className="pt-2 flex items-center justify-end gap-3">
+          {failed && error && <p className="text-red-500 text-xs">{error}</p>}
+          <button
+            onClick={onGenerate}
+            disabled={generating}
+            className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-600 font-medium disabled:opacity-50 transition-colors"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            {generating ? 'Regenerating...' : 'Regenerate summary'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

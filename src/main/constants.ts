@@ -44,10 +44,6 @@ export const SUMMARY_MIN_TRANSCRIPT_LENGTH = 20
 // (where next steps are usually agreed) is always in context.
 export const FOLLOWUP_MAX_TOKENS = 1200
 export const FOLLOWUP_TRANSCRIPT_SLICE = 6000
-/** Ended sessions scanned on boot for missing title/summary. */
-export const NOTES_RETRY_SCAN = 40
-/** Max notes regenerations kicked off on a single boot. */
-export const NOTES_RETRY_LIMIT = 8
 
 export const RAG_QUERY_TRANSCRIPT_SLICE = 500
 export const RAG_DEFAULT_TOP_K = 10
