@@ -22,6 +22,16 @@ Raven is an Electron desktop app. It captures microphone and system audio, cance
 
 Capture, echo cancellation, SQLite history, and document RAG run locally. Microphone/system audio goes to **Deepgram** or **AssemblyAI**. Assist prompts (transcript excerpts, chat, optional screenshot, retrieved docs) go to **Anthropic**, **OpenAI** or **Z.ai**.
 
+## About this fork
+
+This is a fork of [Laxcorp-Research/project-raven](https://github.com/Laxcorp-Research/project-raven). It adds the following on top of the original project:
+
+- **Z.ai (GLM) as a third AI provider.** Add a Z.ai key under **Settings → API Keys**, then pick GLM models for Live assist and Notes under **Settings → Models**, the same way as for Anthropic and OpenAI.
+  - Live assist can use GLM-5.3, GLM-5.3 Flash, GLM-5.3 FlashX, GLM-5.2, GLM-5.1, GLM-4.7, GLM-4.7 Flash and GLM-5V Turbo.
+  - Notes use GLM-5.3 Flash with high reasoning effort by default; session memory uses GLM-5.1.
+  - GLM-5.3 Flash, GLM-5.3 FlashX and GLM-5V Turbo read screenshots; for text-only GLM models the screenshot is replaced with a note instead of failing the request.
+- **Notes see the whole meeting.** The summary and the follow-up email draft are built from the entire transcript (up to 300,000 characters) instead of only the first 8,000 or the last 6,000 characters, so decisions and action items from the end of a long call are no longer lost.
+
 <p align="center">
   <a href="#download"><strong>Download</strong></a> &nbsp;|&nbsp;
   <a href="https://github.com/Laxcorp-Research/project-raven/releases"><strong>Releases</strong></a> &nbsp;|&nbsp;
