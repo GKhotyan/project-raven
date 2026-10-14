@@ -182,6 +182,7 @@ describe('store', () => {
       expect(settings.assemblyaiApiKey).toBe('')
       expect(settings.recallApiKey).toBe('')
       expect(settings.openaiApiKey).toBe('')
+      expect(settings.zaiApiKey).toBe('')
     })
   })
 
@@ -217,6 +218,18 @@ describe('store', () => {
 
       expect(mockSet).toHaveBeenCalledWith('assemblyaiApiKey', 'aai-key')
       expect(mockSet).toHaveBeenCalledWith('recallApiKey', 'recall-key')
+    })
+
+    it('saves the Z.ai key encrypted when provided in extras', () => {
+      saveApiKeys('dg-key', 'ant-key', undefined, { zaiApiKey: 'zai-key' })
+
+      expect(mockSet).toHaveBeenCalledWith('zaiApiKey', expect.any(String))
+    })
+
+    it('leaves the Z.ai key untouched when extras omit it', () => {
+      saveApiKeys('dg-key', 'ant-key')
+
+      expect(mockSet.mock.calls.some((c: unknown[]) => c[0] === 'zaiApiKey')).toBe(false)
     })
 
     it('encrypts keys when safeStorage available', () => {
@@ -271,6 +284,28 @@ describe('store', () => {
       expect(hasApiKeys()).toBe(false)
     })
 
+    it('checks the Z.ai key when aiProvider is zai (only a Z.ai key set)', () => {
+      mockGet.mockImplementation((key: string) => {
+        if (key === 'deepgramApiKey') return 'dg-key'
+        if (key === 'zaiApiKey') return 'zai-key'
+        if (key === 'aiProvider') return 'zai'
+        return ''
+      })
+
+      expect(hasApiKeys()).toBe(true)
+    })
+
+    it('does not accept an Anthropic key for a zai provider', () => {
+      mockGet.mockImplementation((key: string) => {
+        if (key === 'deepgramApiKey') return 'dg-key'
+        if (key === 'anthropicApiKey') return 'ant-key'
+        if (key === 'aiProvider') return 'zai'
+        return ''
+      })
+
+      expect(hasApiKeys()).toBe(false)
+    })
+
     it('returns true when AssemblyAI is the only STT key', () => {
       mockGet.mockImplementation((key: string) => {
         if (key === 'assemblyaiApiKey') return 'aai-key'
@@ -290,6 +325,7 @@ describe('store', () => {
       expect(mockSet).toHaveBeenCalledWith('deepgramApiKey', '')
       expect(mockSet).toHaveBeenCalledWith('anthropicApiKey', '')
       expect(mockSet).toHaveBeenCalledWith('openaiApiKey', '')
+      expect(mockSet).toHaveBeenCalledWith('zaiApiKey', '')
       expect(mockSet).toHaveBeenCalledWith('assemblyaiApiKey', '')
       expect(mockSet).toHaveBeenCalledWith('recallApiKey', '')
       expect(mockSet).toHaveBeenCalledWith('apiKeysConfigured', false)

@@ -70,7 +70,7 @@ declare global {
         deepgramKey: string,
         anthropicKey: string,
         openaiKey?: string,
-        extras?: { assemblyaiApiKey?: string; recallApiKey?: string },
+        extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string },
       ) => Promise<boolean>;
       apiKeysHas: () => Promise<boolean>;
       apiKeysClear: () => Promise<boolean>;

@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import { hostname, userInfo } from 'os';
 import { existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
+import { PROVIDER_API_KEY_FIELD, parseAIProviderName, type AIProviderName } from '../shared/aiSlots';
 
 function getEncryptionKey(): string {
   // Derive a deterministic per-machine key from OS-level identifiers.
@@ -56,17 +57,18 @@ export interface LocalSettings {
   vocabulary: string;
 
   // AI Provider — live assist (overlay Assist / What should I say / Recap)
-  aiProvider: 'anthropic' | 'openai';
+  aiProvider: AIProviderName;
   aiModel: string;
   aiEffort: string;
   /**
    * Notes slot (title, summary, insights). Empty = follow assist provider's
    * cheap default (Haiku / Luna). See src/shared/aiSlots.ts.
    */
-  notesProvider: '' | 'anthropic' | 'openai';
+  notesProvider: '' | AIProviderName;
   notesModel: string;
   notesEffort: string;
   openaiApiKey: string;
+  zaiApiKey: string;
 
   /**
    * Auto-start on meeting detection. 'off' disables detection entirely,
@@ -122,6 +124,7 @@ const STORE_DEFAULTS: LocalSettings = {
   notesModel: '',
   notesEffort: '',
   openaiApiKey: '',
+  zaiApiKey: '',
   meetingAutoStart: 'prompt',
   activeModeId: null,
   displayName: '',
@@ -209,6 +212,7 @@ export function getAllSettings(): LocalSettings {
     notesModel: store.get('notesModel'),
     notesEffort: store.get('notesEffort'),
     openaiApiKey: '',
+    zaiApiKey: '',
     meetingAutoStart: store.get('meetingAutoStart'),
     activeModeId: store.get('activeModeId'),
     displayName: store.get('displayName'),
@@ -255,6 +259,7 @@ const API_KEY_FIELDS = [
   'deepgramApiKey',
   'anthropicApiKey',
   'openaiApiKey',
+  'zaiApiKey',
   'assemblyaiApiKey',
   'recallApiKey',
 ] as const;
@@ -290,12 +295,15 @@ export function saveApiKeys(
   deepgramKey: string,
   anthropicKey: string,
   openaiKey?: string,
-  extras?: { assemblyaiApiKey?: string; recallApiKey?: string },
+  extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string },
 ): void {
   store.set('deepgramApiKey', encryptValue(deepgramKey));
   store.set('anthropicApiKey', encryptValue(anthropicKey));
   if (openaiKey !== undefined) {
     store.set('openaiApiKey', encryptValue(openaiKey));
+  }
+  if (extras?.zaiApiKey !== undefined) {
+    store.set('zaiApiKey', encryptValue(extras.zaiApiKey));
   }
   if (extras?.assemblyaiApiKey !== undefined) {
     store.set('assemblyaiApiKey', encryptValue(extras.assemblyaiApiKey));
@@ -308,10 +316,8 @@ export function saveApiKeys(
 
 export function hasApiKeys(): boolean {
   const hasStt = !!getApiKey('deepgramApiKey') || !!getApiKey('assemblyaiApiKey');
-  const provider = store.get('aiProvider') || 'anthropic';
-  const hasAiKey = provider === 'openai'
-    ? !!getApiKey('openaiApiKey')
-    : !!getApiKey('anthropicApiKey');
+  const provider = parseAIProviderName(store.get('aiProvider')) ?? 'anthropic';
+  const hasAiKey = !!getApiKey(PROVIDER_API_KEY_FIELD[provider]);
   return hasStt && hasAiKey;
 }
 
@@ -319,6 +325,7 @@ export function clearApiKeys(): void {
   store.set('deepgramApiKey', '');
   store.set('anthropicApiKey', '');
   store.set('openaiApiKey', '');
+  store.set('zaiApiKey', '');
   store.set('assemblyaiApiKey', '');
   store.set('recallApiKey', '');
   store.set('apiKeysConfigured', false);

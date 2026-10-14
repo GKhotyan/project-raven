@@ -287,6 +287,13 @@ describe('IPC Handlers (registerIpcHandlers)', () => {
       expect(mockSetLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: true })
     })
 
+    it('refuses to write zaiApiKey through store:set', async () => {
+      const result = await handlers['store:set'](fakeEvent(), 'zaiApiKey', 'leak')
+
+      expect(result).toBe(false)
+      expect(mockSaveSetting).not.toHaveBeenCalled()
+    })
+
     it('does not set login item settings for other keys', () => {
       handlers['store:set'](fakeEvent(), 'theme', 'dark')
 
@@ -318,6 +325,13 @@ describe('IPC Handlers (registerIpcHandlers)', () => {
 
       expect(mockSaveApiKeys).toHaveBeenCalledWith('dg-key', 'ant-key', 'oai-key', undefined)
       expect(result).toBe(true)
+    })
+
+    it('rejects a non-string Z.ai key', () => {
+      const result = handlers['store:save-api-keys'](fakeEvent(), 'dg', 'ant', undefined, { zaiApiKey: 42 })
+
+      expect(result).toEqual({ __ipcError: true, error: 'zaiApiKey must be a string' })
+      expect(mockSaveApiKeys).not.toHaveBeenCalled()
     })
 
     it('passes AssemblyAI and Recall extras when provided', () => {

@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('raven', {
     deepgramKey: string,
     anthropicKey: string,
     openaiKey?: string,
-    extras?: { assemblyaiApiKey?: string; recallApiKey?: string },
+    extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string },
   ) => ipcRenderer.invoke('store:save-api-keys', deepgramKey, anthropicKey, openaiKey, extras),
   apiKeysHas: () => ipcRenderer.invoke('store:has-api-keys'),
   apiKeysClear: () => ipcRenderer.invoke('store:clear-api-keys'),

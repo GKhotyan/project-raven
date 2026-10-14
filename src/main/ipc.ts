@@ -80,7 +80,7 @@ export function registerIpcHandlers(): void {
 
   const PROTECTED_STORE_KEYS: readonly string[] = [
     'mode', 'auth_tokens', 'auth_user',
-    'deepgramApiKey', 'anthropicApiKey', 'openaiApiKey',
+    'deepgramApiKey', 'anthropicApiKey', 'openaiApiKey', 'zaiApiKey',
     'assemblyaiApiKey', 'recallApiKey', 'apiKeysConfigured',
   ]
 
@@ -118,13 +118,14 @@ export function registerIpcHandlers(): void {
       deepgramKey: string,
       anthropicKey: string,
       openaiKey?: string,
-      extras?: { assemblyaiApiKey?: string; recallApiKey?: string },
+      extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string },
     ) => {
       assertString(deepgramKey, 'deepgramKey', 500)
       assertString(anthropicKey, 'anthropicKey', 500)
       if (openaiKey !== undefined) assertString(openaiKey, 'openaiKey', 500)
       if (extras?.assemblyaiApiKey !== undefined) assertString(extras.assemblyaiApiKey, 'assemblyaiApiKey', 500)
       if (extras?.recallApiKey !== undefined) assertString(extras.recallApiKey, 'recallApiKey', 500)
+      if (extras?.zaiApiKey !== undefined) assertString(extras.zaiApiKey, 'zaiApiKey', 500)
       saveApiKeys(deepgramKey, anthropicKey, openaiKey, extras)
       void import('./services/vendorFeatures').then(({ reinitRecallFromStore }) =>
         reinitRecallFromStore(),
