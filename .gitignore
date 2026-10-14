@@ -84,3 +84,6 @@ resources/tray/trayTemplate.png
 resources/tray/trayTemplate@2x.png
 resources/tray/trayActiveTemplate.png
 resources/tray/trayActiveTemplate@2x.png
+
+# Local docs (plans, notes) — kept out of the fork
+docs/
