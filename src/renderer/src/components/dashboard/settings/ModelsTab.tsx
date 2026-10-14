@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '../../../lib/logger'
 import {
+  AI_PROVIDERS,
   MEMORY_MODELS,
+  PROVIDER_LABELS,
   notesSlotIsExplicit,
   parseAIProviderName,
   resolveNotesModel,
@@ -71,8 +73,11 @@ export function ModelsTab() {
     effort: DEFAULT_EFFORT,
   })
   const [notesExplicit, setNotesExplicit] = useState(false)
-  const [hasAnthropicKey, setHasAnthropicKey] = useState(false)
-  const [hasOpenaiKey, setHasOpenaiKey] = useState(false)
+  const [hasKeyFor, setHasKeyFor] = useState<Record<AIProviderName, boolean>>({
+    anthropic: false,
+    openai: false,
+    zai: false,
+  })
   const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle')
   const saveFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -88,6 +93,7 @@ export function ModelsTab() {
           notesEffortRaw,
           anthropicKey,
           openaiKey,
+          zaiKey,
         ] = await Promise.all([
           window.raven.storeGet('aiProvider'),
           window.raven.storeGet('aiModel'),
@@ -97,6 +103,7 @@ export function ModelsTab() {
           window.raven.storeGet('notesEffort'),
           window.raven.storeGet('anthropicApiKey'),
           window.raven.storeGet('openaiApiKey'),
+          window.raven.storeGet('zaiApiKey'),
         ])
 
         const liveProvider = parseAIProviderName(aiProviderRaw) ?? 'anthropic'
@@ -107,8 +114,8 @@ export function ModelsTab() {
         const notesProvider = resolveNotesProvider(notesProviderRaw, liveProvider)
         setNotes(notesSlotFromStore(notesProvider, notesModelRaw, notesEffortRaw, notesProvider))
 
-        setHasAnthropicKey(typeof anthropicKey === 'string' && anthropicKey.trim().length > 0)
-        setHasOpenaiKey(typeof openaiKey === 'string' && openaiKey.trim().length > 0)
+        const present = (v: unknown) => typeof v === 'string' && v.trim().length > 0
+        setHasKeyFor({ anthropic: present(anthropicKey), openai: present(openaiKey), zai: present(zaiKey) })
       } catch (error) {
         log.error('Failed to load model settings:', error)
       }
@@ -153,12 +160,11 @@ export function ModelsTab() {
     }
   }
 
-  const hasKey = (provider: AIProviderName) =>
-    provider === 'openai' ? hasOpenaiKey : hasAnthropicKey
+  const hasKey = (provider: AIProviderName) => hasKeyFor[provider]
 
   const missingKeyWarning = (slot: SlotState, label: string) => {
     if (hasKey(slot.provider)) return null
-    const vendor = slot.provider === 'openai' ? 'OpenAI' : 'Anthropic'
+    const vendor = PROVIDER_LABELS[slot.provider]
     return (
       <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
         {label} uses {vendor}, but no {vendor} key is set. Add it under API Keys.
@@ -169,12 +175,12 @@ export function ModelsTab() {
   return (
     <div className="space-y-6 max-w-lg">
       <p className="text-sm text-gray-500">
-        Keys stay under API Keys. Live assist is the overlay. Notes is titles, summaries, and insights after a call — Haiku / Luna only.
+        Keys stay under API Keys. Live assist is the overlay. Notes is titles, summaries, and insights after a call — Haiku / Luna / GLM Flash only.
       </p>
 
-      {!hasAnthropicKey && !hasOpenaiKey && (
+      {!AI_PROVIDERS.some((p) => hasKeyFor[p]) && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Add an Anthropic or OpenAI key under API Keys before picking models.
+          Add an Anthropic, OpenAI or Z.ai key under API Keys before picking models.
         </p>
       )}
 
@@ -182,19 +188,17 @@ export function ModelsTab() {
         title="Live assist"
         description="Overlay Assist, What should I say, and Recap during a call."
         slot={live}
-        hasAnthropicKey={hasAnthropicKey}
-        hasOpenaiKey={hasOpenaiKey}
+        hasKeyFor={hasKeyFor}
         onChange={onLiveChange}
       />
       {missingKeyWarning(live, 'Live assist')}
 
       <ModelSlotCard
         title="Notes"
-        description="Titles, summaries, and insights after a call. Fast models only (Haiku / Luna)."
+        description="Titles, summaries, and insights after a call. Fast models only (Haiku / Luna / GLM Flash)."
         slot={notes}
         fastOnly
-        hasAnthropicKey={hasAnthropicKey}
-        hasOpenaiKey={hasOpenaiKey}
+        hasKeyFor={hasKeyFor}
         onChange={(next) => {
           setNotes(next)
           void persistNotes(next)
@@ -212,7 +216,7 @@ export function ModelsTab() {
           {MODEL_CATALOG[live.provider].find((m) => m.id === MEMORY_MODELS[live.provider])?.label
             ?? MEMORY_MODELS[live.provider]}
           <span className="block text-[11px] text-gray-400 mt-0.5">
-            {live.provider === 'openai' ? 'OpenAI key' : 'Anthropic key'} · system default
+            {PROVIDER_LABELS[live.provider]} key · system default
           </span>
         </p>
       </div>
@@ -229,16 +233,14 @@ function ModelSlotCard({
   description,
   slot,
   fastOnly = false,
-  hasAnthropicKey,
-  hasOpenaiKey,
+  hasKeyFor,
   onChange,
 }: {
   title: string
   description: string
   slot: SlotState
   fastOnly?: boolean
-  hasAnthropicKey: boolean
-  hasOpenaiKey: boolean
+  hasKeyFor: Record<AIProviderName, boolean>
   onChange: (next: SlotState) => void
 }) {
   const [modelOpen, setModelOpen] = useState(false)
@@ -265,7 +267,7 @@ function ModelSlotCard({
   const selectedModelLabel = modelOptions.find((m) => m.id === slot.model)?.label || slot.model
 
   const applyProvider = (provider: AIProviderName) => {
-    const allowed = provider === 'openai' ? hasOpenaiKey : hasAnthropicKey
+    const allowed = hasKeyFor[provider]
     if (!allowed) return
     const model = DEFAULT_MODELS[provider]
     const effort = fastOnly
@@ -289,7 +291,7 @@ function ModelSlotCard({
   }
 
   const providerBtn = (provider: AIProviderName, label: string, sub: string) => {
-    const allowed = provider === 'openai' ? hasOpenaiKey : hasAnthropicKey
+    const allowed = hasKeyFor[provider]
     const selected = slot.provider === provider
     return (
       <button
@@ -320,6 +322,7 @@ function ModelSlotCard({
       <div className="flex gap-3">
         {providerBtn('anthropic', 'Anthropic', 'Claude models')}
         {providerBtn('openai', 'OpenAI', 'GPT models')}
+        {providerBtn('zai', 'Z.ai', 'GLM models')}
       </div>
 
       <div className="space-y-2">
