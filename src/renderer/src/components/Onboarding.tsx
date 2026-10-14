@@ -5,12 +5,12 @@ import { OverlayTour } from './OverlayTour'
 import { detectMacPlatform, shortcutKeycaps } from '../lib/shortcutLabels'
 import { shouldOpenAccessibilitySettingsAfterPrompt } from '../../../shared/macAccessibilityGrant'
 import { ONBOARDING_STEP, onboardingPermissionsReady, parseOnboardingStep } from '../../../shared/onboardingFlow'
+import { PROVIDER_LABELS, parseAIProviderName, type AIProviderName } from '../../../shared/aiSlots'
+import { DEFAULT_MODELS, MODEL_CATALOG } from '../lib/aiModels'
 
 interface OnboardingProps {
   onComplete: () => void
 }
-
-type AiProvider = 'anthropic' | 'openai'
 
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(ONBOARDING_STEP.welcome)
@@ -33,12 +33,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   useEffect(() => {
     void (async () => {
       try {
-        const [storedStep, dg, aai, ant, oai, provider] = await Promise.all([
+        const [storedStep, dg, aai, ant, oai, zai, provider] = await Promise.all([
           window.raven.storeGet('onboardingStep'),
           window.raven.storeGet('deepgramApiKey'),
           window.raven.storeGet('assemblyaiApiKey'),
           window.raven.storeGet('anthropicApiKey'),
           window.raven.storeGet('openaiApiKey'),
+          window.raven.storeGet('zaiApiKey'),
           window.raven.storeGet('aiProvider'),
         ])
         setStep(parseOnboardingStep(storedStep) as 1 | 2 | 3 | 4 | 5 | 6)
@@ -46,7 +47,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         if (typeof aai === 'string' && aai) setAssemblyKey(aai)
         if (typeof ant === 'string' && ant) setAnthropicKey(ant)
         if (typeof oai === 'string' && oai) setOpenaiKey(oai)
-        if (provider === 'openai' || provider === 'anthropic') setAiProvider(provider)
+        if (typeof zai === 'string' && zai) setZaiKey(zai)
+        const storedProvider = parseAIProviderName(provider)
+        if (storedProvider) setAiProvider(storedProvider)
       } finally {
         setStepHydrated(true)
       }
@@ -62,9 +65,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [accessibilityPermission, setAccessibilityPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown')
   const [deepgramKey, setDeepgramKey] = useState('')
   const [assemblyKey, setAssemblyKey] = useState('')
-  const [aiProvider, setAiProvider] = useState<AiProvider>('anthropic')
+  const [aiProvider, setAiProvider] = useState<AIProviderName>('anthropic')
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
+  const [zaiKey, setZaiKey] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [deepgramInvalid, setDeepgramInvalid] = useState(false)
   const [assemblyInvalid, setAssemblyInvalid] = useState(false)
@@ -76,7 +80,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [showAiKey, setShowAiKey] = useState(false)
   const [screenNeedsRestart, setScreenNeedsRestart] = useState(false)
 
-  const aiKey = aiProvider === 'anthropic' ? anthropicKey : openaiKey
+  const aiKey = { anthropic: anthropicKey, openai: openaiKey, zai: zaiKey }[aiProvider]
 
   const TOTAL_STEPS = 6
 
@@ -226,17 +230,17 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   const persistValidatedKeys = async () => {
+    const extras: { assemblyaiApiKey?: string; zaiApiKey?: string } = {}
+    if (assemblyKey.trim()) extras.assemblyaiApiKey = assemblyKey.trim()
+    if (aiProvider === 'zai') extras.zaiApiKey = zaiKey.trim()
     await window.raven.apiKeysSave(
       deepgramKey.trim(),
       aiProvider === 'anthropic' ? anthropicKey.trim() : '',
       aiProvider === 'openai' ? openaiKey.trim() : undefined,
-      assemblyKey.trim() ? { assemblyaiApiKey: assemblyKey.trim() } : undefined
+      Object.keys(extras).length > 0 ? extras : undefined,
     )
     await window.raven.storeSet('aiProvider', aiProvider)
-    await window.raven.storeSet(
-      'aiModel',
-      aiProvider === 'anthropic' ? 'claude-haiku-4-5' : 'gpt-5.6-luna'
-    )
+    await window.raven.storeSet('aiModel', DEFAULT_MODELS[aiProvider])
   }
 
   const handleSaveKeys = async () => {
@@ -448,6 +452,19 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                       >
                         OpenAI
                       </button>
+                      <button
+                        onClick={() => {
+                          setAiProvider('zai')
+                          setError(null)
+                        }}
+                        className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                          aiProvider === 'zai'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        Z.ai
+                      </button>
                     </div>
                   </div>
 
@@ -494,7 +511,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                         Claude models. Pay-as-you-go.
                       </p>
                     </div>
-                  ) : (
+                  ) : aiProvider === 'openai' ? (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <label className="text-sm font-medium text-gray-700">OpenAI Key</label>
@@ -534,6 +551,48 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                       </div>
                       <p className="text-xs text-gray-400">
                         GPT models. Pay-as-you-go.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-gray-700">Z.ai Key</label>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            window.raven.openExternal('https://z.ai/manage-apikey/apikey-list')
+                          }}
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          Get key
+                          <ExternalLink size={10} />
+                        </a>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showAiKey ? 'text' : 'password'}
+                          value={zaiKey}
+                          onChange={(e) => { setZaiKey(e.target.value); setAiKeyInvalid(false); setError(null) }}
+                          placeholder="Z.ai API key"
+                          className={`w-full px-3 py-2.5 pr-10 bg-white border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
+                            aiKeyInvalid
+                              ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                              : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                          }`}
+                        />
+                        {zaiKey && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAiKey(!showAiKey)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                          >
+                            {showAiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        GLM models. Pay-as-you-go.
                       </p>
                     </div>
                   )}
@@ -829,7 +888,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                     <div className="flex items-center gap-2">
                       <Key size={13} className="text-gray-400" />
                       <span className="text-sm text-gray-600">
-                        {aiProvider === 'anthropic' ? 'Anthropic' : 'OpenAI'}
+                        {PROVIDER_LABELS[aiProvider]}
                       </span>
                     </div>
                     <span className="text-xs font-mono text-green-600 bg-green-50 px-2 py-0.5 rounded-md">
@@ -842,7 +901,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                       <span className="text-sm text-gray-600">Model</span>
                     </div>
                     <span className="text-xs text-gray-700 font-medium">
-                      {aiProvider === 'anthropic' ? 'Claude Haiku 4.5' : 'GPT-5.6 Luna'}
+                      {MODEL_CATALOG[aiProvider].find((m) => m.id === DEFAULT_MODELS[aiProvider])?.label}
                     </span>
                   </div>
                   <div className="px-4 py-2.5 flex items-center justify-between">
