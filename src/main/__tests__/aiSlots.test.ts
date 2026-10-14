@@ -63,6 +63,15 @@ describe('aiSlots', () => {
     expect(resolveSettingsPickerModel('openai', 'gpt-5.6-luna')).toBe('gpt-5.6-luna')
   })
 
+  it('resolveSettingsPickerEffort defaults Z.ai notes to high and the others to low', () => {
+    expect(resolveSettingsPickerEffort(undefined, 'zai')).toBe('high')
+    expect(resolveSettingsPickerEffort('', 'zai')).toBe('high')
+    expect(resolveSettingsPickerEffort('max', 'zai')).toBe('high')
+    expect(resolveSettingsPickerEffort('low', 'zai')).toBe('low')
+    expect(resolveSettingsPickerEffort(undefined, 'openai')).toBe('low')
+    expect(resolveSettingsPickerEffort(undefined, 'anthropic')).toBe('low')
+  })
+
   it('resolveSettingsPickerEffort keeps none/low/high and clamps everything else to low', () => {
     expect(resolveSettingsPickerEffort('none')).toBe('none')
     expect(resolveSettingsPickerEffort('low')).toBe('low')

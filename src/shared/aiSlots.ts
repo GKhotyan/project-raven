@@ -76,13 +76,26 @@ export function resolveSettingsPickerModel(
   return id === NOTES_FAST_MODELS[provider] ? id : NOTES_FAST_MODELS[provider]
 }
 
+export type NotesEffort = 'none' | 'low' | 'high'
+
 /**
- * Notes effort: none/low/high. `high` is for models that reason poorly at
- * low (GLM-5.3 Flash skips thinking there). Haiku has no effort API;
- * callers still store `low`.
+ * Notes effort when none is stored. GLM-5.3 Flash skips reasoning at low and
+ * gets facts wrong, so Z.ai notes think by default. Haiku has no effort API.
  */
-export function resolveSettingsPickerEffort(requested: unknown): 'none' | 'low' | 'high' {
-  return requested === 'none' || requested === 'high' ? requested : 'low'
+export const NOTES_DEFAULT_EFFORT: Record<AIProviderName, NotesEffort> = {
+  anthropic: 'low',
+  openai: 'low',
+  zai: 'high',
+}
+
+/** Notes effort: none/low/high; anything else falls back to the vendor default. */
+export function resolveSettingsPickerEffort(
+  requested: unknown,
+  provider: AIProviderName = 'anthropic',
+): NotesEffort {
+  return requested === 'none' || requested === 'low' || requested === 'high'
+    ? requested
+    : NOTES_DEFAULT_EFFORT[provider]
 }
 
 /** Live-assist vendor only. Ignores notesProvider / notesModel. */

@@ -86,7 +86,7 @@ export async function getNotesProvider(): Promise<AIProvider> {
 
   const provider = resolveNotesProvider(getSetting('notesProvider'), getSetting('aiProvider'));
   const model = resolveSettingsPickerModel(provider, getSetting('notesModel'));
-  const effort = resolveSettingsPickerEffort(getSetting('notesEffort'));
+  const effort = resolveSettingsPickerEffort(getSetting('notesEffort'), provider);
   const apiKey = requireApiKey(provider, getApiKey);
 
   return getProvider({ provider, model, apiKey, effort });

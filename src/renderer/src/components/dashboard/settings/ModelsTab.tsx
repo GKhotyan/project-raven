@@ -57,7 +57,7 @@ function notesSlotFromStore(
 ): SlotState {
   const provider = (parseAIProviderName(providerRaw) ?? fallbackProvider) as AIProviderName
   const model = resolveSettingsPickerModel(provider, modelRaw)
-  const effort = resolveSettingsPickerEffort(effortRaw)
+  const effort = resolveSettingsPickerEffort(effortRaw, provider)
   return { provider, model, effort }
 }
 
@@ -155,7 +155,7 @@ export function ModelsTab() {
     void persistLive(next)
     if (!notesExplicit) {
       const model = DEFAULT_MODELS[next.provider]
-      const effort = resolveSettingsPickerEffort(DEFAULT_EFFORT)
+      const effort = resolveSettingsPickerEffort(undefined, next.provider)
       setNotes({ provider: next.provider, model, effort })
     }
   }
@@ -270,15 +270,17 @@ function ModelSlotCard({
     const allowed = hasKeyFor[provider]
     if (!allowed) return
     const model = DEFAULT_MODELS[provider]
+    // Notes take the new vendor's default; low carried from Haiku would
+    // switch GLM-5.3 Flash reasoning off.
     const effort = fastOnly
-      ? resolveSettingsPickerEffort(slot.effort)
+      ? resolveSettingsPickerEffort(undefined, provider)
       : (resolveEffort(provider, model, slot.effort) ?? DEFAULT_EFFORT)
     onChange({ provider, model, effort })
   }
 
   const applyModel = (modelId: string) => {
     const effort = fastOnly
-      ? resolveSettingsPickerEffort(slot.effort)
+      ? resolveSettingsPickerEffort(slot.effort, slot.provider)
       : (resolveEffort(slot.provider, modelId, slot.effort) ?? DEFAULT_EFFORT)
     onChange({ ...slot, model: modelId, effort })
   }

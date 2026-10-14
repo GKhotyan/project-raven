@@ -540,6 +540,20 @@ describe('providerFactory', () => {
       await expect(getProviderFromStore()).rejects.toThrow('No API key configured for zai')
     })
 
+    it('getNotesProvider runs GLM-5.3 Flash on high effort when notes effort is unset', async () => {
+      mockStoreGet.mockImplementation((key: string) => ({
+        aiProvider: 'zai',
+        notesEffort: '',
+        zaiApiKey: 'zai-test-key',
+      } as Record<string, unknown>)[key])
+
+      const provider = await getNotesProvider()
+
+      expect(provider).toBeInstanceOf(ZaiProvider)
+      expect((provider as unknown as { model: string }).model).toBe('glm-5.3-flash')
+      expect((provider as unknown as { effort: string }).effort).toBe('high')
+    })
+
     it('getMemoryProvider uses GLM-5.1 on the Z.ai key', async () => {
       mockStoreGet.mockImplementation((key: string) => ({
         aiProvider: 'zai',
