@@ -4,6 +4,7 @@ import { Header } from './Header'
 
 const log = createLogger('Dashboard')
 import { SessionList } from './SessionList'
+import { ActiveModePicker } from './ActiveModePicker'
 import { RecordingChip } from './RecordingChip'
 import { SessionDetail } from './SessionDetail'
 import { SettingsModal } from './SettingsModal'
@@ -291,6 +292,12 @@ export function Dashboard({ initialUserProfile }: DashboardProps = {}) {
             }}
           />
         ) : (
+          <>
+          {/* Outside SessionList: its reloads unmount the list, which
+              would close an open picker menu. */}
+          <div className="max-w-[900px] mx-auto w-full px-6 shrink-0 relative z-20">
+            <ActiveModePicker />
+          </div>
           <SessionList
             onSessionSelect={handleSessionSelect}
             activeSessionId={activeSession?.id || null}
@@ -301,6 +308,7 @@ export function Dashboard({ initialUserProfile }: DashboardProps = {}) {
                 : null
             }
           />
+          </>
         )}
       </div>
 

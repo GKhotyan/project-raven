@@ -11,6 +11,7 @@ import { ConfirmModal } from '../shared/ConfirmModal'
 import { Toast } from '../shared/Toast'
 import { Briefcase, TrendingUp, ClipboardList, Search, BookOpen, ArrowRight, Code2 } from 'lucide-react'
 import { createLogger } from '../../lib/logger'
+import { notifyModesChanged } from '../../lib/activeMode'
 
 const log = createLogger('ModeEditor')
 
@@ -267,6 +268,14 @@ export function ModeEditorModal({ isOpen, onClose }: ModeEditorModalProps) {
   const [uploadProgress, setUploadProgress] = useState<{ stage: string; current: number; total: number } | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
 
+  // Let the active-mode picker refetch once the editor closes, covering
+  // renames, deletions and active changes made here.
+  const wasOpenRef = useRef(false)
+  useEffect(() => {
+    if (wasOpenRef.current && !isOpen) notifyModesChanged()
+    wasOpenRef.current = isOpen
+  }, [isOpen])
+
   useEffect(() => {
     if (isOpen) {
       setToast(null)
@@ -477,6 +486,7 @@ export function ModeEditorModal({ isOpen, onClose }: ModeEditorModalProps) {
     try {
       await window.raven.modes.setActive(selectedMode.id)
       setActiveMode(selectedMode)
+      notifyModesChanged()
       await loadModes()
     } catch (err) {
       log.error('Failed to set active:', err)
