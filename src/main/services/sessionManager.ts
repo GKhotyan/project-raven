@@ -11,7 +11,7 @@ import { generateSessionTitle } from '../claudeService';
 import { generateSessionSummary } from './summaryService';
 import { analyzeSession } from './insightsService';
 import { indexSession } from './sessionIndexService';
-import { hasActionItemsSection } from './sessionNotesPrompt';
+import { hasActionItemsSection, summaryHasActionItemsSection } from './sessionNotesPrompt';
 import { normalizeActionItemsForStorage } from '../../shared/actionItems';
 import { getSetting } from '../store';
 import { createLogger } from '../logger';
@@ -549,11 +549,15 @@ class SessionManager {
 
       // Best-effort structured action items. Runs after the summary is stored
       // so it never delays the summary write, and its own try/catch means a
-      // failure here never affects the summary result. Skipped when the mode's
-      // template has its own action-items section (the summary covers it);
-      // clear any earlier extraction so the card doesn't duplicate it.
+      // failure here never affects the summary result. Skipped when the
+      // summary covers them — the mode's template has an action-items section
+      // or the generated summary has one anyway; clear any earlier extraction
+      // so the card doesn't duplicate it.
       const mode = modeId ? databaseService.getMode(modeId) : null;
-      if (mode && hasActionItemsSection(mode.notesTemplate)) {
+      const summaryCoversActionItems =
+        (mode && hasActionItemsSection(mode.notesTemplate)) ||
+        (notesOk && summaryHasActionItemsSection(result.summary));
+      if (summaryCoversActionItems) {
         if (session.actionItemsJson) {
           databaseService.updateSession(sessionId, { actionItemsJson: null });
         }

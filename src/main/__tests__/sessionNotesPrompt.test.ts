@@ -4,6 +4,7 @@ import {
   buildSessionTitlePrompt,
   hasActionItemsSection,
   notesTemplateSections,
+  summaryHasActionItemsSection,
 } from '../services/sessionNotesPrompt'
 
 const YOUTUBE_DEMO_TRANSCRIPT = `You: Hello. How are you? I'm good. Thank you.
@@ -109,5 +110,19 @@ describe('hasActionItemsSection', () => {
     expect(hasActionItemsSection(null)).toBe(false)
     expect(hasActionItemsSection([])).toBe(false)
     expect(hasActionItemsSection([{ title: 'Decisions', instructions: 'action items go elsewhere' }])).toBe(false)
+  })
+})
+
+describe('summaryHasActionItemsSection', () => {
+  it('detects an action-items heading in the generated summary', () => {
+    expect(summaryHasActionItemsSection('Intro\n\n## Action items\n- Do it')).toBe(true)
+    expect(summaryHasActionItemsSection('### ACTION ITEMS:\n- Do it')).toBe(true)
+    expect(summaryHasActionItemsSection('## Action-item\n- Do it')).toBe(true)
+  })
+
+  it('ignores summaries without such a heading', () => {
+    expect(summaryHasActionItemsSection(null)).toBe(false)
+    expect(summaryHasActionItemsSection('')).toBe(false)
+    expect(summaryHasActionItemsSection('## Key points\n- We discussed action items briefly')).toBe(false)
   })
 })

@@ -36,6 +36,15 @@ export function hasActionItemsSection(
   )
 }
 
+/**
+ * True when a generated summary already has an action-items heading. The
+ * summary prompt asks for one whenever someone commits to a task, even in
+ * modes whose template doesn't list it, so check the actual output too.
+ */
+export function summaryHasActionItemsSection(summary: string | null | undefined): boolean {
+  return /^#{1,6}\s*action[\s-]*items?\b/im.test(summary ?? '')
+}
+
 export function buildSessionTitlePrompt(transcript: string): string {
   return `<task>Write a 3-7 word title for this session transcript. Output ONLY the title text.</task>
 
