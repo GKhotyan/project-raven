@@ -7,6 +7,7 @@ import { isPlaceholderSessionTitle } from '../../../../shared/sessionDisplay'
 import { parseActionItems, type ActionItem } from '../../../../shared/actionItems'
 import { computeTalkRatio } from '../../../../shared/talkRatio'
 import { SUMMARY_CHANNELS, type SummaryChannel } from '../../../../shared/summaryPublish'
+import { SessionModePicker } from './SessionModePicker'
 import {
   findSegmentBreaks,
   parseSessionSegments,
@@ -402,6 +403,11 @@ export function SessionDetail({ session, onBack, onUpdateTitle, isRecording = fa
               </span>
             )}
             <TalkRatioChip transcript={session.transcript} />
+            <SessionModePicker
+              sessionId={session.id}
+              modeId={session.modeId}
+              disabled={isRecording && activeSessionId === session.id}
+            />
           </div>
 
           <div
