@@ -96,6 +96,27 @@ describe('generateSessionSummary', () => {
     expect(result.summary).toContain('random text without the expected markers')
   })
 
+  it('sends an hour-long transcript to the model without cutting the end', async () => {
+    mockGenerateShort.mockResolvedValueOnce('TITLE: Planning\nSUMMARY:\n- shipped')
+    // ~1 hour of talk is 60-80K characters; the decision comes last.
+    const transcript = 'Me: ' + 'word '.repeat(16_000) + '\nThem: FINAL_DECISION ship on Friday'
+
+    await generateSessionSummary(transcript, null)
+
+    const { prompt } = mockGenerateShort.mock.calls[0][0]
+    expect(prompt).toContain('FINAL_DECISION ship on Friday')
+  })
+
+  it('cuts the end of a transcript past 300K characters to stay inside the model context', async () => {
+    mockGenerateShort.mockResolvedValueOnce('TITLE: Marathon\nSUMMARY:\n- long')
+    const transcript = 'Me: ' + 'x'.repeat(300_000) + 'PAST_THE_CAP'
+
+    await generateSessionSummary(transcript, null)
+
+    const { prompt } = mockGenerateShort.mock.calls[0][0]
+    expect(prompt).not.toContain('PAST_THE_CAP')
+  })
+
   it('throws when the notes model returns no text', async () => {
     mockGenerateShort.mockResolvedValueOnce('   ')
 

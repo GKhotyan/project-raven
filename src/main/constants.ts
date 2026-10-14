@@ -36,7 +36,10 @@ export const STREAM_MAX_TOKENS = 128_000
 export const AI_STREAM_TIMEOUT_MS = 1_800_000
 
 export const SUMMARY_MAX_TOKENS = 2000
-export const SUMMARY_TRANSCRIPT_SLICE = 8000
+// Notes see the whole meeting. 300K chars (~100K tokens for Russian
+// speech) keeps a multi-hour call inside the 200K context of Haiku 4.5 /
+// GLM-4.7 Flash; past that the end is cut.
+export const SUMMARY_TRANSCRIPT_SLICE = 300_000
 export const SUMMARY_MIN_TRANSCRIPT_LENGTH = 20
 
 // Follow-up email draft: a short artifact, so a smaller output budget than
