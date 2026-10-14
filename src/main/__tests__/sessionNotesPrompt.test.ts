@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildSessionSummaryPrompt,
   buildSessionTitlePrompt,
+  hasActionItemsSection,
   notesTemplateSections,
 } from '../services/sessionNotesPrompt'
 
@@ -94,5 +95,19 @@ describe('buildSessionTitlePrompt', () => {
     expect(prompt).toContain('AI/ML Platform Testing and Training Efficiency Discussion')
     expect(prompt).toContain('Do not invent a meeting type')
     expect(prompt).toContain('start a YouTube video now')
+  })
+})
+
+describe('hasActionItemsSection', () => {
+  it('matches action-items section titles case-insensitively', () => {
+    expect(hasActionItemsSection([{ title: 'Action Items' }])).toBe(true)
+    expect(hasActionItemsSection([{ title: 'Summary' }, { title: 'action item' }])).toBe(true)
+    expect(hasActionItemsSection([{ title: 'Action-items & owners' }])).toBe(true)
+  })
+
+  it('returns false for templates without such a section', () => {
+    expect(hasActionItemsSection(null)).toBe(false)
+    expect(hasActionItemsSection([])).toBe(false)
+    expect(hasActionItemsSection([{ title: 'Decisions', instructions: 'action items go elsewhere' }])).toBe(false)
   })
 })

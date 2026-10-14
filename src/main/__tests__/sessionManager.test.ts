@@ -690,6 +690,49 @@ describe('SessionManager', () => {
       expect(writes).toHaveLength(0);
     });
 
+    it('skips action item extraction when the mode template has an Action Items section', async () => {
+      mockDatabaseService.getMode.mockReturnValue({
+        id: 'mode-1',
+        name: 'HRM Daily',
+        notesTemplate: [{ title: 'Action Items', instructions: 'What I committed to do.' }],
+      });
+      mockDatabaseService.getSession.mockReturnValue({ ...notesSession(), modeId: 'mode-1' });
+
+      await sessionManager.generateAndStoreNotes('test-uuid-1234');
+
+      expect(analyzeSession).not.toHaveBeenCalled();
+    });
+
+    it('clears previously extracted action items when the mode now covers them', async () => {
+      mockDatabaseService.getMode.mockReturnValue({
+        id: 'mode-1',
+        name: 'HRM Daily',
+        notesTemplate: [{ title: 'Action items', instructions: '' }],
+      });
+      mockDatabaseService.getSession.mockReturnValue({
+        ...notesSession(),
+        modeId: 'mode-1',
+        actionItemsJson: JSON.stringify([{ task: 'Old', assignee: null, deadline: null }]),
+      });
+
+      await sessionManager.generateAndStoreNotes('test-uuid-1234');
+
+      expect(mockDatabaseService.updateSession).toHaveBeenCalledWith('test-uuid-1234', { actionItemsJson: null });
+    });
+
+    it('still extracts action items when the mode template has no such section', async () => {
+      mockDatabaseService.getMode.mockReturnValue({
+        id: 'mode-1',
+        name: 'Daily',
+        notesTemplate: [{ title: 'Key points', instructions: '' }],
+      });
+      mockDatabaseService.getSession.mockReturnValue({ ...notesSession(), modeId: 'mode-1' });
+
+      await sessionManager.generateAndStoreNotes('test-uuid-1234');
+
+      expect(analyzeSession).toHaveBeenCalled();
+    });
+
     it('never fails the notes job when action item extraction throws', async () => {
       vi.mocked(analyzeSession).mockRejectedValueOnce(new Error('provider exploded'));
       mockDatabaseService.getSession.mockReturnValue(notesSession());

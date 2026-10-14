@@ -23,6 +23,19 @@ export function notesTemplateSections(
     }))
 }
 
+/**
+ * True when the mode's notes template already has an action-items section,
+ * so the summary itself carries them and the separate structured extraction
+ * would only duplicate it.
+ */
+export function hasActionItemsSection(
+  notesTemplate: Array<{ title: string; instructions?: string }> | null | undefined,
+): boolean {
+  return notesTemplateSections(notesTemplate).some((section) =>
+    /\baction[\s-]*items?\b/i.test(section.title),
+  )
+}
+
 export function buildSessionTitlePrompt(transcript: string): string {
   return `<task>Write a 3-7 word title for this session transcript. Output ONLY the title text.</task>
 
