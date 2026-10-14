@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AI_PROVIDERS,
   MEMORY_MODELS,
   NOTES_FAST_MODELS,
+  PROVIDER_API_KEY_FIELD,
+  PROVIDER_LABELS,
   notesSlotIsExplicit,
   parseAIProviderName,
   resolveMemoryModel,
@@ -16,12 +19,28 @@ const ANTHROPIC_CATALOG = ['claude-haiku-4-5', 'claude-sonnet-4-6', 'claude-sonn
 const OPENAI_CATALOG = ['gpt-5.6-luna', 'gpt-5.2']
 
 describe('aiSlots', () => {
-  it('parseAIProviderName accepts only anthropic and openai', () => {
+  it('parseAIProviderName accepts anthropic, openai and zai only', () => {
     expect(parseAIProviderName('anthropic')).toBe('anthropic')
     expect(parseAIProviderName('openai')).toBe('openai')
+    expect(parseAIProviderName('zai')).toBe('zai')
+    expect(parseAIProviderName('gemini')).toBeNull()
     expect(parseAIProviderName('')).toBeNull()
-    expect(parseAIProviderName('claude')).toBeNull()
     expect(parseAIProviderName(undefined)).toBeNull()
+  })
+
+  it('maps every provider to a label and an API key field', () => {
+    expect(AI_PROVIDERS).toEqual(['anthropic', 'openai', 'zai'])
+    expect(PROVIDER_LABELS).toEqual({ anthropic: 'Anthropic', openai: 'OpenAI', zai: 'Z.ai' })
+    expect(PROVIDER_API_KEY_FIELD).toEqual({
+      anthropic: 'anthropicApiKey',
+      openai: 'openaiApiKey',
+      zai: 'zaiApiKey',
+    })
+  })
+
+  it('resolveMemoryModel gives GLM-5.1 for zai', () => {
+    expect(resolveMemoryProvider('zai')).toBe('zai')
+    expect(resolveMemoryModel('zai')).toBe('glm-5.1')
   })
 
   it('resolveNotesProvider uses notesProvider when set, else aiProvider, else anthropic', () => {

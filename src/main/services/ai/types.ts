@@ -1,4 +1,6 @@
-export type AIProviderName = 'anthropic' | 'openai';
+import type { AIProviderName } from '../../../shared/aiSlots';
+
+export type { AIProviderName };
 
 export type EffortLevel = 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -61,6 +63,13 @@ const ANTHROPIC_NO_XHIGH: EffortLevel[] = ['low', 'medium', 'high', 'max'];
 const ANTHROPIC_OPUS_45: EffortLevel[] = ['low', 'medium', 'high'];
 const OPENAI_GPT5: EffortLevel[] = ['none', 'low', 'medium', 'high', 'xhigh'];
 
+// Z.ai: https://docs.z.ai/guides/llm/glm-5.2 — thinking is a switch,
+// `thinking: { type: 'enabled' | 'disabled' }`, default enabled. We map
+// none → disabled, high → enabled and never send `reasoning_effort`.
+const ZAI_THINKING: EffortLevel[] = ['none', 'high'];
+
+export const ZAI_BASE_URL = 'https://api.z.ai/api/paas/v4/';
+
 export const MODEL_CATALOG: Record<AIProviderName, ModelOption[]> = {
   anthropic: [
     { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', effort: null },
@@ -83,16 +92,25 @@ export const MODEL_CATALOG: Record<AIProviderName, ModelOption[]> = {
     { id: 'gpt-5.4', label: 'GPT-5.4', effort: OPENAI_GPT5 },
     { id: 'gpt-5.2', label: 'GPT-5.2', effort: OPENAI_GPT5 },
   ],
+  zai: [
+    { id: 'glm-4.7-flash', label: 'GLM-4.7 Flash', effort: ZAI_THINKING },
+    { id: 'glm-5.2', label: 'GLM-5.2', effort: ZAI_THINKING },
+    { id: 'glm-5.1', label: 'GLM-5.1', effort: ZAI_THINKING },
+    { id: 'glm-4.7', label: 'GLM-4.7', effort: ZAI_THINKING },
+    { id: 'glm-5v-turbo', label: 'GLM-5V Turbo (vision)', effort: ZAI_THINKING },
+  ],
 };
 
 export const PROVIDER_MODELS: Record<AIProviderName, string[]> = {
   anthropic: MODEL_CATALOG.anthropic.map((m) => m.id),
   openai: MODEL_CATALOG.openai.map((m) => m.id),
+  zai: MODEL_CATALOG.zai.map((m) => m.id),
 };
 
 export const DEFAULT_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-haiku-4-5',
   openai: 'gpt-5.6-luna',
+  zai: 'glm-4.7-flash',
 };
 
 export const DEFAULT_EFFORT: EffortLevel = 'low';
@@ -139,6 +157,9 @@ export function contextWindowFor(provider: AIProviderName, model: string): numbe
       return CONTEXT_200K;
     }
     return CONTEXT_1M;
+  }
+  if (provider === 'zai') {
+    return model === 'glm-5.2' ? CONTEXT_1M : CONTEXT_200K;
   }
   if (model === 'gpt-5.2' || model === 'gpt-5.4-mini') return CONTEXT_400K;
   return CONTEXT_1050K;
@@ -190,20 +211,22 @@ export function fitMessagesToContext(params: {
   for (let i = history.length - 1; i >= 0; i--) {
     const tokens = estimateMessageTokens(history[i]);
     if (tokens > budget) {
+      // A truncated answer is only kept with the question before it, and
+      // that question comes out of the same budget.
+      const question = i > 0 && history[i - 1].role === 'user' ? history[i - 1] : null;
+      const room = budget - (question ? estimateMessageTokens(question) : 0);
       if (
         kept.length === 0
+        && question
         && history[i].role === 'assistant'
         && typeof history[i].content === 'string'
-        && budget > 200
+        && room > 200
       ) {
-        const maxChars = budget * 3;
-        kept.unshift({
+        const maxChars = room * 3;
+        kept.unshift(question, {
           ...history[i],
           content: `${history[i].content.slice(0, maxChars)}\n[...earlier answer truncated to fit context]`,
         });
-        if (i > 0 && history[i - 1].role === 'user') {
-          kept.unshift(history[i - 1]);
-        }
       }
       break;
     }
@@ -251,4 +274,20 @@ export function buildOpenAIEffortParams(
   const effort = resolveEffort('openai', model, requested);
   if (!effort) return {};
   return { reasoning_effort: effort };
+}
+
+export function buildZaiThinkingParams(
+  model: string,
+  requested?: string,
+): Record<string, unknown> {
+  const effort = resolveEffort('zai', model, requested);
+  if (!effort) return {};
+  // Always send the switch. Omitting it falls through to the API default
+  // (enabled), which makes the `none` default slow and the picker lie.
+  return { thinking: { type: effort === 'none' ? 'disabled' : 'enabled' } };
+}
+
+/** Text-only GLM models answer 400 on image_url parts. */
+export function zaiModelAcceptsImages(model: string): boolean {
+  return model === 'glm-5v-turbo';
 }

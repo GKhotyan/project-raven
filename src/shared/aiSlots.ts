@@ -4,26 +4,46 @@
  * Memory is not a Settings slot. A weak compact poisons Assist for the
  * rest of the session, so this is Sonnet-class, not Haiku/Luna. Still
  * hits the Live assist vendor's key:
- * Anthropic → Claude Sonnet 5, OpenAI → GPT-5.6 Terra.
+ * Anthropic → Claude Sonnet 5, OpenAI → GPT-5.6 Terra, Z.ai → GLM-5.1.
  *
  * Unset notes* still defaults to the cheap models (Haiku / Luna).
  */
 
-export type AIProviderName = 'anthropic' | 'openai'
+export type AIProviderName = 'anthropic' | 'openai' | 'zai'
+
+/** Display and fallback order. Anthropic first: it is the app default. */
+export const AI_PROVIDERS: readonly AIProviderName[] = ['anthropic', 'openai', 'zai']
+
+export const PROVIDER_LABELS: Record<AIProviderName, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  zai: 'Z.ai',
+}
+
+export type AIProviderKeyField = 'anthropicApiKey' | 'openaiApiKey' | 'zaiApiKey'
+
+/** Store field holding each vendor's key. Never fall back to another vendor's key. */
+export const PROVIDER_API_KEY_FIELD: Record<AIProviderName, AIProviderKeyField> = {
+  anthropic: 'anthropicApiKey',
+  openai: 'openaiApiKey',
+  zai: 'zaiApiKey',
+}
 
 export const NOTES_FAST_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-haiku-4-5',
   openai: 'gpt-5.6-luna',
+  zai: 'glm-4.7-flash',
 }
 
 /** System memory compact. Not user-configurable. Not the notes cheap default. */
 export const MEMORY_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-sonnet-5',
   openai: 'gpt-5.6-terra',
+  zai: 'glm-5.1',
 }
 
 export function parseAIProviderName(value: unknown): AIProviderName | null {
-  return value === 'openai' || value === 'anthropic' ? value : null
+  return (AI_PROVIDERS as readonly unknown[]).includes(value) ? (value as AIProviderName) : null
 }
 
 /** notesProvider if set, else assist aiProvider, else Anthropic. */

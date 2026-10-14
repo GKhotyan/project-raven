@@ -4,13 +4,18 @@ import {
   DEFAULT_MODELS,
   MODEL_CATALOG,
   PROVIDER_MODELS,
+  ZAI_BASE_URL,
   buildAnthropicEffortParams,
   buildOpenAIEffortParams,
+  buildZaiThinkingParams,
   effortLevelsForModel,
+  estimateMessageTokens,
   resolveEffort,
   streamMaxTokensFor,
   contextWindowFor,
   fitMessagesToContext,
+  zaiModelAcceptsImages,
+  type AIMessage,
 } from '../services/ai/types'
 import { FAST_MODELS } from '../services/ai/providerFactory'
 import { MEMORY_MODELS, NOTES_FAST_MODELS } from '../../shared/aiSlots'
@@ -296,5 +301,76 @@ describe('buildOpenAIEffortParams', () => {
     expect(buildOpenAIEffortParams('gpt-5.5', 'max')).toEqual({
       reasoning_effort: 'low',
     })
+  })
+})
+
+describe('Z.ai catalog', () => {
+  it('lists GLM models with Flash as the cheap default', () => {
+    expect(PROVIDER_MODELS.zai).toEqual([
+      'glm-4.7-flash',
+      'glm-5.2',
+      'glm-5.1',
+      'glm-4.7',
+      'glm-5v-turbo',
+    ])
+    expect(DEFAULT_MODELS.zai).toBe('glm-4.7-flash')
+    expect(NOTES_FAST_MODELS.zai).toBe('glm-4.7-flash')
+    expect(FAST_MODELS.zai).toBe('glm-4.7-flash')
+    expect(MEMORY_MODELS.zai).toBe('glm-5.1')
+    expect(ZAI_BASE_URL).toBe('https://api.z.ai/api/paas/v4/')
+  })
+
+  it('treats thinking as an on/off switch', () => {
+    for (const id of PROVIDER_MODELS.zai) {
+      expect(effortLevelsForModel('zai', id)).toEqual(['none', 'high'])
+    }
+    // `low` carried over from an Anthropic slot is not on the GLM ladder.
+    expect(resolveEffort('zai', 'glm-5.2', 'low')).toBe('none')
+    expect(resolveEffort('zai', 'glm-5.2', 'high')).toBe('high')
+  })
+
+  it('always sends the thinking switch, defaulting to disabled', () => {
+    expect(buildZaiThinkingParams('glm-5.2', 'none')).toEqual({ thinking: { type: 'disabled' } })
+    expect(buildZaiThinkingParams('glm-5.2', 'high')).toEqual({ thinking: { type: 'enabled' } })
+    expect(buildZaiThinkingParams('glm-5.2', DEFAULT_EFFORT)).toEqual({ thinking: { type: 'disabled' } })
+    expect(buildZaiThinkingParams('glm-5.2', undefined)).toEqual({ thinking: { type: 'disabled' } })
+  })
+
+  it('only GLM-5V takes images', () => {
+    expect(zaiModelAcceptsImages('glm-5v-turbo')).toBe(true)
+    expect(zaiModelAcceptsImages('glm-5.2')).toBe(false)
+    expect(zaiModelAcceptsImages('glm-4.7-flash')).toBe(false)
+  })
+
+  it('uses official GLM windows: 1M for GLM-5.2, 200K for the rest, 128K output', () => {
+    expect(contextWindowFor('zai', 'glm-5.2')).toBe(1_000_000)
+    expect(contextWindowFor('zai', 'glm-5.1')).toBe(200_000)
+    expect(contextWindowFor('zai', 'glm-4.7')).toBe(200_000)
+    expect(contextWindowFor('zai', 'glm-4.7-flash')).toBe(200_000)
+    expect(contextWindowFor('zai', 'glm-5v-turbo')).toBe(200_000)
+    for (const id of PROVIDER_MODELS.zai) {
+      expect(streamMaxTokensFor('zai', id)).toBe(128_000)
+    }
+  })
+
+  it('trims an OpenAI-sized history so a GLM-4.7 request fits its 200K window', () => {
+    const big = 'x'.repeat(300_000) // ~100K estimated tokens each
+    const messages: AIMessage[] = [
+      { role: 'user', content: big },
+      { role: 'assistant', content: big },
+      { role: 'user', content: big },
+      { role: 'assistant', content: big },
+      { role: 'user', content: 'What should I say?' },
+    ]
+    const contextWindow = contextWindowFor('zai', 'glm-4.7')
+    const out = fitMessagesToContext({
+      system: 'You are Raven.',
+      messages,
+      maxOutputTokens: streamMaxTokensFor('zai', 'glm-4.7'),
+      contextWindow,
+    })
+    const input = out.messages.reduce((sum, m) => sum + estimateMessageTokens(m), 0)
+    expect(input + out.maxTokens).toBeLessThanOrEqual(contextWindow)
+    expect(out.messages[out.messages.length - 1]).toEqual({ role: 'user', content: 'What should I say?' })
   })
 })
