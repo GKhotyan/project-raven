@@ -4,7 +4,7 @@ import { buildAnthropicEffortParams, streamMaxTokensFor } from './types';
 export class AnthropicProvider implements AIProvider {
   readonly name = 'anthropic' as const;
   private apiKey: string;
-  private model: string;
+  readonly model: string;
   private effort?: string;
 
   constructor(apiKey: string, model: string, effort?: string) {

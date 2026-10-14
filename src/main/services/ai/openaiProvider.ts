@@ -6,7 +6,7 @@ import type OpenAI from 'openai';
 export class OpenAIProvider implements AIProvider {
   readonly name: AIProviderName = 'openai';
   protected apiKey: string;
-  protected model: string;
+  readonly model: string;
   protected effort?: string;
 
   constructor(apiKey: string, model: string, effort?: string) {

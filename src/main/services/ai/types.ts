@@ -28,6 +28,8 @@ export interface AIMessage {
 
 export interface AIProvider {
   readonly name: AIProviderName;
+  /** Catalog model id this provider calls. */
+  readonly model: string;
 
   streamResponse(params: {
     system: string;
@@ -300,4 +302,9 @@ export function buildZaiThinkingParams(
 /** Text-only GLM models answer 400 on image_url parts. */
 export function zaiModelAcceptsImages(model: string): boolean {
   return model === 'glm-5v-turbo' || model === 'glm-5.3-flash' || model === 'glm-5.3-flashx';
+}
+
+/** Display label for a catalog model ("GLM-5.3 Flash"); the id when it is not in the catalog. */
+export function modelLabel(provider: AIProviderName, model: string): string {
+  return MODEL_CATALOG[provider].find((m) => m.id === model)?.label ?? model;
 }

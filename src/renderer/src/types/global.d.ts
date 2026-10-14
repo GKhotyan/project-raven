@@ -44,6 +44,7 @@ interface Session {
   transcript: TranscriptEntry[];
   aiResponses: AIResponse[];
   summary: string | null;
+  summaryModel?: string | null;
   modeId: string | null;
   durationSeconds: number;
   startedAt: number;

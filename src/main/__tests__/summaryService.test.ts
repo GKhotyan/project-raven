@@ -117,6 +117,19 @@ describe('generateSessionSummary', () => {
     expect(prompt).not.toContain('PAST_THE_CAP')
   })
 
+  it('reports the catalog label of the notes model it used', async () => {
+    vi.mocked(getNotesProvider).mockResolvedValueOnce({
+      name: 'zai',
+      model: 'glm-5.3-flash',
+      generateShort: mockGenerateShort,
+    } as any)
+    mockGenerateShort.mockResolvedValueOnce('TITLE: T\nSUMMARY:\n- x')
+
+    const result = await generateSessionSummary('long enough transcript to pass the minimum length check', null)
+
+    expect(result.model).toBe('GLM-5.3 Flash')
+  })
+
   it('throws when the notes model returns no text', async () => {
     mockGenerateShort.mockResolvedValueOnce('   ')
 

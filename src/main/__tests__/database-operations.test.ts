@@ -185,8 +185,8 @@ describe('DatabaseService', () => {
 
       // The migrate() method calls exec() for the migrations table creation
       expect(mockExec).toHaveBeenCalled()
-      // transaction() should be called once per unapplied migration (20 total)
-      expect(mockTransactionFn).toHaveBeenCalledTimes(20)
+      // transaction() should be called once per unapplied migration (21 total)
+      expect(mockTransactionFn).toHaveBeenCalledTimes(21)
     })
 
     it('skips migrations already applied', () => {
@@ -211,6 +211,7 @@ describe('DatabaseService', () => {
         { name: '018_add_ask_conversations' },
         { name: '019_add_session_resume' },
         { name: '020_add_chunk_embedding_model' },
+        { name: '021_add_session_summary_model' },
       ])
 
       databaseService.initialize()
@@ -226,8 +227,8 @@ describe('DatabaseService', () => {
 
       databaseService.initialize()
 
-      // 18 unapplied migrations remain (003 through 020)
-      expect(mockTransactionFn).toHaveBeenCalledTimes(18)
+      // 19 unapplied migrations remain (003 through 021)
+      expect(mockTransactionFn).toHaveBeenCalledTimes(19)
     })
 
     it('is idempotent - second call is a no-op', () => {
@@ -357,6 +358,15 @@ describe('DatabaseService', () => {
       expect(result).toBeNull()
     })
 
+    it('maps summary_model onto the session (null when absent)', () => {
+      mockPrepare.mockReturnValue({ run: mockRun, get: mockGet, all: mockAll })
+
+      mockGet.mockReturnValue(makeSessionRow({ summary_model: 'GLM-5.3 Flash' }))
+      expect(databaseService.getSession('sess-1')!.summaryModel).toBe('GLM-5.3 Flash')
+      mockGet.mockReturnValue(makeSessionRow())
+      expect(databaseService.getSession('sess-1')!.summaryModel).toBeNull()
+    })
+
     it('maps segments_json and assist_memory_json onto the session (null when absent)', () => {
       mockPrepare.mockReturnValue({ run: mockRun, get: mockGet, all: mockAll })
 
@@ -440,6 +450,15 @@ describe('DatabaseService', () => {
       expect(sql).toContain('updated_at = ?')
       expect(sql).toContain('title = ?')
       expect(mockRun).toHaveBeenCalledWith(expect.any(Number), 'New Title', 'sess-1')
+    })
+
+    it('writes summary_model', () => {
+      mockPrepare.mockReturnValue({ run: mockRun, get: mockGet, all: mockAll })
+
+      databaseService.updateSession('sess-1', { summaryModel: 'GLM-5.3 Flash' })
+
+      expect(mockPrepare.mock.calls[0][0] as string).toContain('summary_model = ?')
+      expect(mockRun).toHaveBeenCalledWith(expect.any(Number), 'GLM-5.3 Flash', 'sess-1')
     })
 
     it('builds SET clause for multiple fields', () => {

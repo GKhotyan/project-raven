@@ -573,7 +573,7 @@ app.whenReady().then(() => {
 
     const session = databaseService.getSession(sessionId)
     if (!session) return { ok: false, error: 'Session not found' }
-    const summary = extractPublishableSummary(session.summary)
+    const summary = extractPublishableSummary(session.summary, session.summaryModel)
     if (!summary) return { ok: false, error: 'This session has no summary to send.' }
 
     const { publishSummary } = await import('./services/summaryPublishService')

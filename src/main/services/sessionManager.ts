@@ -541,6 +541,7 @@ class SessionManager {
         databaseService.updateSession(sessionId, {
           ...(preserveTitle ? {} : { title: result.title || fallbackTitle }),
           summary: result.summary,
+          summaryModel: result.model ?? null,
         });
         notesOk = true;
       } else if (!preserveTitle && result.title && !isPlaceholderSessionTitle(result.title)) {

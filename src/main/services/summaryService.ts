@@ -5,6 +5,7 @@
 
 import { databaseService } from './database'
 import { getNotesProvider } from './ai/providerFactory'
+import { modelLabel } from './ai/types'
 import { createLogger } from '../logger'
 import { SUMMARY_MAX_TOKENS, SUMMARY_TRANSCRIPT_SLICE, SUMMARY_MIN_TRANSCRIPT_LENGTH } from '../constants'
 import { PLACEHOLDER_SESSION_TITLE, isPlaceholderSessionTitle } from '../../shared/sessionDisplay'
@@ -19,6 +20,8 @@ const log = createLogger('Summary')
 interface SummaryResult {
   title: string
   summary: string
+  /** Catalog label of the notes model, e.g. "GLM-5.3 Flash". */
+  model?: string
 }
 
 /** Pull TITLE/SUMMARY out of a notes-model reply. Models often ignore the exact labels. */
@@ -109,7 +112,7 @@ export async function generateSessionSummary(
     if (!parsed.summary.trim()) {
       log.warn('Notes model reply had no usable summary:', text.slice(0, 240))
     }
-    return parsed
+    return provider.model ? { ...parsed, model: modelLabel(provider.name, provider.model) } : parsed
   } catch (error) {
     log.error('Failed to generate summary:', error)
     throw error

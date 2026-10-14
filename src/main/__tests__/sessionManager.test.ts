@@ -612,6 +612,18 @@ describe('SessionManager', () => {
       );
     });
 
+    it('stores which model generated the summary', async () => {
+      mockDatabaseService.getSession.mockReturnValue(notesSession());
+      vi.mocked(generateSessionSummary).mockResolvedValueOnce({ title: 'T', summary: 'S', model: 'GLM-5.3 Flash' });
+
+      await sessionManager.generateAndStoreNotes('test-uuid-1234');
+
+      expect(mockDatabaseService.updateSession).toHaveBeenCalledWith(
+        'test-uuid-1234',
+        expect.objectContaining({ summary: 'S', summaryModel: 'GLM-5.3 Flash' }),
+      );
+    });
+
     it('keeps a real title the session already has', async () => {
       mockDatabaseService.getSession.mockReturnValue(notesSession({ title: 'My Interview' }));
 

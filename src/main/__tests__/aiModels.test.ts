@@ -14,6 +14,7 @@ import {
   streamMaxTokensFor,
   contextWindowFor,
   fitMessagesToContext,
+  modelLabel,
   zaiModelAcceptsImages,
   type AIMessage,
 } from '../services/ai/types'
@@ -392,5 +393,13 @@ describe('Z.ai catalog', () => {
     const input = out.messages.reduce((sum, m) => sum + estimateMessageTokens(m), 0)
     expect(input + out.maxTokens).toBeLessThanOrEqual(contextWindow)
     expect(out.messages[out.messages.length - 1]).toEqual({ role: 'user', content: 'What should I say?' })
+  })
+})
+
+describe('modelLabel', () => {
+  it('maps a catalog id to its display label and falls back to the id', () => {
+    expect(modelLabel('zai', 'glm-5.3-flash')).toBe('GLM-5.3 Flash')
+    expect(modelLabel('anthropic', 'claude-haiku-4-5')).toBe('Claude Haiku 4.5')
+    expect(modelLabel('openai', 'gpt-unknown')).toBe('gpt-unknown')
   })
 })

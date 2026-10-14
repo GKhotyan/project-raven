@@ -51,6 +51,8 @@ export interface Session {
   transcript: TranscriptEntry[];
   aiResponses: AIResponse[];
   summary: string | null;
+  /** Catalog label of the model that generated `summary`, e.g. "GLM-5.3 Flash". */
+  summaryModel?: string | null;
   insightsJson: string | null;
   actionItemsJson: string | null;
   followUpEmail: string | null;
@@ -86,6 +88,7 @@ export interface SessionRow {
   follow_up_email: string | null;
   segments_json: string | null;
   assist_memory_json: string | null;
+  summary_model?: string | null;
   mode_id: string | null;
   duration_seconds: number;
   started_at: number;
@@ -542,6 +545,14 @@ class DatabaseService {
           ALTER TABLE session_context_chunks ADD COLUMN embedding_model TEXT DEFAULT NULL;
         `,
       },
+      {
+        // Catalog label of the model that wrote the summary, shown in the
+        // app and in the published post. NULL for older summaries.
+        name: '021_add_session_summary_model',
+        sql: `
+          ALTER TABLE sessions ADD COLUMN summary_model TEXT DEFAULT NULL;
+        `,
+      },
     ];
 
     // Capture `this.db` to a local after the !null guard above so the
@@ -629,6 +640,10 @@ class DatabaseService {
     if (updates.summary !== undefined) {
       setClauses.push('summary = ?');
       values.push(updates.summary);
+    }
+    if (updates.summaryModel !== undefined) {
+      setClauses.push('summary_model = ?');
+      values.push(updates.summaryModel);
     }
     if (updates.insightsJson !== undefined) {
       setClauses.push('insights_json = ?');
@@ -987,6 +1002,7 @@ class DatabaseService {
       transcript,
       aiResponses,
       summary: row.summary || null,
+      summaryModel: row.summary_model || null,
       insightsJson: row.insights_json || null,
       actionItemsJson: row.action_items_json || null,
       followUpEmail: row.follow_up_email || null,
