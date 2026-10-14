@@ -43,10 +43,11 @@ export const SUMMARY_TRANSCRIPT_SLICE = 300_000
 export const SUMMARY_MIN_TRANSCRIPT_LENGTH = 20
 
 // Follow-up email draft: a short artifact, so a smaller output budget than
-// the summary, but a generous transcript tail so the closing of the call
-// (where next steps are usually agreed) is always in context.
+// the summary. The transcript goes in whole up to the same cap as the
+// summary; past it the start is cut, so the closing of the call (where
+// next steps are usually agreed) is always in context.
 export const FOLLOWUP_MAX_TOKENS = 1200
-export const FOLLOWUP_TRANSCRIPT_SLICE = 6000
+export const FOLLOWUP_TRANSCRIPT_SLICE = 300_000
 
 export const RAG_QUERY_TRANSCRIPT_SLICE = 500
 export const RAG_DEFAULT_TOP_K = 10

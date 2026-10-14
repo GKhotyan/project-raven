@@ -32,6 +32,35 @@ describe('buildFollowupEmailPrompt', () => {
     expect(prompt).toContain('Them: Hello, thanks for joining')
   })
 
+  it('keeps an hour-long transcript whole, from the opening line to the close', () => {
+    // ~1 hour of talk is 60-80K characters.
+    const transcript =
+      'You: OPENING_CONTEXT budget is 50K\n' + 'Them: ' + 'word '.repeat(16_000) + '\nYou: CLOSING_STEP send the deck'
+    const prompt = buildFollowupEmailPrompt({
+      title: 't',
+      summary: 's',
+      actionItemsJson: null,
+      transcript,
+      senderName: 'Sam',
+    })
+
+    expect(prompt).toContain('OPENING_CONTEXT budget is 50K')
+    expect(prompt).toContain('CLOSING_STEP send the deck')
+  })
+
+  it('drops the start of a transcript past 300K characters and keeps the close', () => {
+    const prompt = buildFollowupEmailPrompt({
+      title: 't',
+      summary: 's',
+      actionItemsJson: null,
+      transcript: 'BEFORE_THE_CAP' + 'x'.repeat(300_000) + 'CLOSING_STEP',
+      senderName: 'Sam',
+    })
+
+    expect(prompt).not.toContain('BEFORE_THE_CAP')
+    expect(prompt).toContain('CLOSING_STEP')
+  })
+
   it('marks action items as none captured when there are none', () => {
     const prompt = buildFollowupEmailPrompt({
       title: 't',
