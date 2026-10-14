@@ -1,3 +1,6 @@
+import { ZAI_BASE_URL } from './services/ai/types'
+import { PROVIDER_LABELS, type AIProviderName } from '../shared/aiSlots'
+
 function isElectronRuntime(): boolean {
   return typeof process.versions.electron === 'string'
 }
@@ -145,6 +148,30 @@ export async function validateOpenAIKey(apiKey: string): Promise<{ valid: boolea
   }
 }
 
+export async function validateZaiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const response = await vendorGet(`${ZAI_BASE_URL}models`, {
+      Authorization: `Bearer ${apiKey}`,
+    })
+
+    if (response.ok) {
+      return { valid: true }
+    }
+    if (response.status === 401) {
+      return { valid: false, error: 'Invalid Z.ai API key.' }
+    }
+    if (response.status === 403) {
+      return { valid: false, error: 'Z.ai key does not have permission. Check your plan.' }
+    }
+    if (response.status === 429) {
+      return { valid: false, error: 'Z.ai rate-limited the check. Wait a few seconds and try again.' }
+    }
+    return { valid: false, error: `Z.ai returned status ${response.status}.` }
+  } catch (err) {
+    return vendorUnreachable('Z.ai', err)
+  }
+}
+
 export async function validateAssemblyAIKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
   try {
     const response = await vendorGet('https://api.assemblyai.com/v2/account', {
@@ -197,42 +224,61 @@ export async function validateBothKeys(
   return { valid: true }
 }
 
+export interface ValidateKeysExtras {
+  openaiKey?: string
+  zaiKey?: string
+}
+
+export interface ValidateKeysResult {
+  valid: boolean
+  error?: string
+  deepgramError?: string
+  aiError?: string
+  openaiError?: string
+  zaiError?: string
+}
+
+const LLM_KEY_VALIDATORS: Record<AIProviderName, (apiKey: string) => Promise<{ valid: boolean; error?: string }>> = {
+  anthropic: (apiKey) => validateAnthropicKey(apiKey),
+  openai: (apiKey) => validateOpenAIKey(apiKey),
+  zai: (apiKey) => validateZaiKey(apiKey),
+}
+
 /**
- * Validate every key the Settings screen holds in one call. `extras.openaiKey`
- * validates a second LLM key alongside the Anthropic one, because the IPC
- * channel has a cooldown and a separate call for it would be throttled.
+ * Validate every key the Settings screen holds in one call. Secondary LLM
+ * keys ride along in `extras` because the IPC channel has a cooldown and a
+ * separate call for each would be throttled. The primary provider's own
+ * key is already `aiKey`, so its extras entry is ignored.
  */
 export async function validateKeys(
   deepgramKey: string,
-  aiProvider: 'anthropic' | 'openai',
+  aiProvider: AIProviderName,
   aiKey: string,
-  extras?: { openaiKey?: string },
-): Promise<{ valid: boolean; error?: string; deepgramError?: string; aiError?: string; openaiError?: string }> {
-  const aiValidation = aiProvider === 'openai'
-    ? validateOpenAIKey(aiKey)
-    : validateAnthropicKey(aiKey)
-
-  // Only meaningful when the primary provider is Anthropic; an OpenAI
-  // primary already validates that key as aiKey.
-  const secondaryOpenaiKey = aiProvider === 'anthropic' ? extras?.openaiKey?.trim() : undefined
+  extras?: ValidateKeysExtras,
+): Promise<ValidateKeysResult> {
+  const secondaryOpenaiKey = aiProvider !== 'openai' ? extras?.openaiKey?.trim() : undefined
+  const secondaryZaiKey = aiProvider !== 'zai' ? extras?.zaiKey?.trim() : undefined
 
   const ok = Promise.resolve({ valid: true as const })
-  const [deepgramResult, aiResult, openaiResult] = await Promise.all([
+  const [deepgramResult, aiResult, openaiResult, zaiResult] = await Promise.all([
     deepgramKey ? validateDeepgramKey(deepgramKey) : ok,
-    aiValidation,
+    LLM_KEY_VALIDATORS[aiProvider](aiKey),
     secondaryOpenaiKey ? validateOpenAIKey(secondaryOpenaiKey) : ok,
+    secondaryZaiKey ? validateZaiKey(secondaryZaiKey) : ok,
   ])
 
-  const aiName = aiProvider === 'openai' ? 'OpenAI' : 'Anthropic'
+  const aiName = PROVIDER_LABELS[aiProvider]
   const deepgramError = deepgramResult.valid ? undefined : (deepgramResult.error || 'Invalid Deepgram key.')
   const aiError = aiResult.valid ? undefined : (aiResult.error || `Invalid ${aiName} key.`)
   const openaiError = openaiResult.valid ? undefined : (openaiResult.error || 'Invalid OpenAI key.')
+  const zaiError = zaiResult.valid ? undefined : (zaiResult.error || 'Invalid Z.ai key.')
 
-  if (deepgramError || aiError || openaiError) {
+  if (deepgramError || aiError || openaiError || zaiError) {
     const failures: Array<{ name: string; error: string }> = []
     if (deepgramError) failures.push({ name: 'Deepgram', error: deepgramError })
     if (aiError) failures.push({ name: aiName, error: aiError })
     if (openaiError) failures.push({ name: 'OpenAI', error: openaiError })
+    if (zaiError) failures.push({ name: 'Z.ai', error: zaiError })
     const error = failures.length > 1
       ? `Invalid ${failures.map((f) => f.name).join(', ')} keys.`
       : failures[0].error
@@ -242,6 +288,7 @@ export async function validateKeys(
       deepgramError,
       aiError,
       ...(secondaryOpenaiKey ? { openaiError } : {}),
+      ...(secondaryZaiKey ? { zaiError } : {}),
     }
   }
 

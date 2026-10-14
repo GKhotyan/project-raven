@@ -17,9 +17,13 @@ contextBridge.exposeInMainWorld('raven', {
   resetAll: () => ipcRenderer.invoke('store:reset-all'),
   validateApiKeys: (deepgramKey: string, anthropicKey: string) =>
     ipcRenderer.invoke('validate-api-keys', deepgramKey, anthropicKey),
-  // extras.openaiKey validates a second LLM key in the same (cooldown-limited) call.
-  validateKeys: (deepgramKey: string, aiProvider: 'anthropic' | 'openai', aiKey: string, extras?: { openaiKey?: string }) =>
-    ipcRenderer.invoke('validate-keys', deepgramKey, aiProvider, aiKey, extras),
+  // extras validates secondary LLM keys in the same (cooldown-limited) call.
+  validateKeys: (
+    deepgramKey: string,
+    aiProvider: 'anthropic' | 'openai' | 'zai',
+    aiKey: string,
+    extras?: { openaiKey?: string; zaiKey?: string },
+  ) => ipcRenderer.invoke('validate-keys', deepgramKey, aiProvider, aiKey, extras),
   validateAssemblyAIKey: (apiKey: string) =>
     ipcRenderer.invoke('validate-assemblyai-key', apiKey),
   validateRecallKey: (apiKey: string, apiUrl?: string) =>

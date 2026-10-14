@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
 }))
 
 import Anthropic from '@anthropic-ai/sdk'
-import { validateDeepgramKey, validateAnthropicKey, validateOpenAIKey, validateBothKeys, validateKeys, validateAssemblyAIKey, validateRecallKey, VALIDATION_TIMEOUT_MS } from '../validators'
+import { validateDeepgramKey, validateAnthropicKey, validateOpenAIKey, validateBothKeys, validateKeys, validateAssemblyAIKey, validateRecallKey, validateZaiKey, VALIDATION_TIMEOUT_MS } from '../validators'
 
 function setElectronVersion(value: string | undefined): void {
   Object.defineProperty(process.versions, 'electron', {
@@ -452,5 +452,64 @@ describe('validateRecallKey', () => {
       valid: false,
       error: 'Recall is not available.',
     })
+  })
+})
+
+describe('validateZaiKey', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('probes the Z.ai models endpoint with a bearer token', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await validateZaiKey('zai-test-key')
+
+    expect(result).toEqual({ valid: true })
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.z.ai/api/paas/v4/models')
+    expect(fetchMock.mock.calls[0][1].headers).toEqual({ Authorization: 'Bearer zai-test-key' })
+  })
+
+  it('returns invalid for 401', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }))
+
+    expect(await validateZaiKey('bad')).toEqual({ valid: false, error: 'Invalid Z.ai API key.' })
+  })
+
+  it('returns a readable error when Z.ai is unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network')))
+
+    expect(await validateZaiKey('k')).toEqual({ valid: false, error: 'Could not reach Z.ai (network).' })
+  })
+})
+
+describe('validateKeys with Z.ai', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('validates a Z.ai-only setup as the primary provider', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await validateKeys('', 'zai', 'zai-key')
+
+    expect(result).toEqual({ valid: true })
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['https://api.z.ai/api/paas/v4/models'])
+  })
+
+  it('reports a bad secondary Z.ai key without failing the primary', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) =>
+      Promise.resolve(url.startsWith('https://api.z.ai/')
+        ? { ok: false, status: 401 }
+        : { ok: true, status: 200 })))
+
+    const result = await validateKeys('', 'openai', 'sk-openai', { zaiKey: 'zai-bad' })
+
+    expect(result.valid).toBe(false)
+    expect(result.aiError).toBeUndefined()
+    expect(result.zaiError).toBe('Invalid Z.ai API key.')
+    expect(result.error).toBe('Invalid Z.ai API key.')
   })
 })

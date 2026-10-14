@@ -26,6 +26,8 @@ import {
 } from './windowManager'
 import { createLogger } from './logger'
 import { cooldownHandle } from './ipcThrottle'
+import { AI_PROVIDERS, parseAIProviderName, type AIProviderName } from '../shared/aiSlots'
+import type { ValidateKeysExtras } from './validators'
 
 const ipcLog = createLogger('IPC')
 
@@ -174,10 +176,17 @@ export function registerIpcHandlers(): void {
 
   cooldownHandle(
     'validate-keys', 2000,
-    async (deepgramKey: string, aiProvider: 'anthropic' | 'openai', aiKey: string, extras?: { openaiKey?: string }) => {
+    async (deepgramKey: string, aiProvider: AIProviderName, aiKey: string, extras?: ValidateKeysExtras) => {
+      if (parseAIProviderName(aiProvider) === null) {
+        throw new Error(`aiProvider must be one of ${AI_PROVIDERS.join(', ')}`)
+      }
       if (extras?.openaiKey !== undefined) assertString(extras.openaiKey, 'openaiKey', 500)
+      if (extras?.zaiKey !== undefined) assertString(extras.zaiKey, 'zaiKey', 500)
+      const secondary: ValidateKeysExtras = {}
+      if (extras?.openaiKey) secondary.openaiKey = extras.openaiKey
+      if (extras?.zaiKey) secondary.zaiKey = extras.zaiKey
       const { validateKeys } = await import('./validators')
-      return validateKeys(deepgramKey, aiProvider, aiKey, extras?.openaiKey ? { openaiKey: extras.openaiKey } : undefined)
+      return validateKeys(deepgramKey, aiProvider, aiKey, Object.keys(secondary).length > 0 ? secondary : undefined)
     }
   )
 

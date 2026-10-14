@@ -805,6 +805,25 @@ describe('IPC Handlers (registerIpcHandlers)', () => {
       expect(mockValidateKeys).toHaveBeenCalledWith('dg-key', 'anthropic', 'ant-key', { openaiKey: 'sk-openai' })
     })
 
+    it('passes a secondary Z.ai key through in the same call', async () => {
+      mockValidateKeys.mockResolvedValue({ valid: true })
+
+      await handlers['validate-keys'](fakeEvent(), 'dg-key', 'anthropic', 'ant-key', { openaiKey: 'sk', zaiKey: 'zai' })
+
+      expect(mockValidateKeys).toHaveBeenCalledWith('dg-key', 'anthropic', 'ant-key', { openaiKey: 'sk', zaiKey: 'zai' })
+    })
+
+    it('accepts zai as the primary provider and rejects unknown providers', async () => {
+      mockValidateKeys.mockResolvedValue({ valid: true })
+
+      await handlers['validate-keys'](fakeEvent(), 'dg-key', 'zai', 'zai-key')
+      expect(mockValidateKeys).toHaveBeenCalledWith('dg-key', 'zai', 'zai-key', undefined)
+
+      await expect(
+        handlers['validate-keys'](fakeEvent(), 'dg-key', 'gemini', 'k'),
+      ).rejects.toThrow('aiProvider must be one of anthropic, openai, zai')
+    })
+
     it('rejects a non-string or oversized secondary key like the other key handlers (assertString)', async () => {
       mockValidateKeys.mockResolvedValue({ valid: true })
 
