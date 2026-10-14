@@ -85,6 +85,10 @@ export interface LocalSettings {
   /** Last Mac DMG version the user tapped Later on. Empty = never dismissed. */
   macUpdateDismissedVersion: string;
 
+  // n8n webhook that publishes session summaries to Mattermost
+  n8nWebhookUrl: string;
+  n8nWebhookToken: string;
+
   // Pro extensions store arbitrary keys via saveSetting()
   // (e.g. auth_tokens, auth_user, sync_queue, backendUrl)
   [key: string]: unknown;
@@ -123,6 +127,8 @@ const STORE_DEFAULTS: LocalSettings = {
   displayName: '',
   profilePicturePath: '',
   macUpdateDismissedVersion: '',
+  n8nWebhookUrl: '',
+  n8nWebhookToken: '',
 };
 
 function createStore(): Store<LocalSettings> {
@@ -208,6 +214,8 @@ export function getAllSettings(): LocalSettings {
     displayName: store.get('displayName'),
     profilePicturePath: store.get('profilePicturePath'),
     macUpdateDismissedVersion: store.get('macUpdateDismissedVersion'),
+    n8nWebhookUrl: store.get('n8nWebhookUrl'),
+    n8nWebhookToken: '',
     proOnboardingComplete: store.get('proOnboardingComplete'),
     proOnboardingStep: store.get('proOnboardingStep'),
     cachedUserProfile: store.get('cachedUserProfile' as keyof LocalSettings) || null,

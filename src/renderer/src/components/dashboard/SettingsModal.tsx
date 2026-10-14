@@ -11,9 +11,10 @@ import { ModelsTab } from './settings/ModelsTab'
 import { AudioTab } from './settings/AudioTab'
 import { LanguageTab } from './settings/LanguageTab'
 import { HotkeysTab } from './settings/HotkeysTab'
+import { IntegrationsTab } from './settings/IntegrationsTab'
 import { AboutTab } from './settings/AboutTab'
 
-type SettingsTab = 'general' | 'profile' | 'api-keys' | 'models' | 'audio' | 'language' | 'hotkeys' | 'about'
+type SettingsTab = 'general' | 'profile' | 'api-keys' | 'models' | 'audio' | 'language' | 'hotkeys' | 'integrations' | 'about'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -83,6 +84,15 @@ const tabs: { id: SettingsTab; label: string; icon: JSX.Element }[] = [
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'integrations',
+    label: 'Integrations',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
       </svg>
     ),
   },
@@ -176,6 +186,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             {activeTab === 'audio' && <AudioTab />}
             {activeTab === 'language' && <LanguageTab />}
             {activeTab === 'hotkeys' && <HotkeysTab />}
+            {activeTab === 'integrations' && <IntegrationsTab />}
             {activeTab === 'about' && <AboutTab />}
           </div>
         </div>
