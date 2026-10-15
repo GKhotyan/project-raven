@@ -44,7 +44,7 @@ export function extractPublishableSummary(
     const heading = line.match(HEADING)
     if (heading) {
       const title = heading[1].replace(/\*\*/g, '').replace(/:\s*$/, '').trim()
-      const leadsSummary =
+      const leadsSummary: boolean =
         current === null && !preamble.join('').trim() && !ACTION_ITEMS_HEADING.test(title)
       current = leadsSummary || PUBLISHABLE_HEADING.test(title) ? { title, body: [] } : { title: '', body: [] }
       if (current.title) sections.push(current)
