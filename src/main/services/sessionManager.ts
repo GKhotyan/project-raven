@@ -9,10 +9,7 @@ import { parseSessionSegments, type SessionSegment } from '../../shared/sessionS
 import { BrowserWindow } from 'electron';
 import { generateSessionTitle } from '../claudeService';
 import { generateSessionSummary } from './summaryService';
-import { analyzeSession } from './insightsService';
 import { indexSession } from './sessionIndexService';
-import { hasActionItemsSection, summaryHasActionItemsSection } from './sessionNotesPrompt';
-import { normalizeActionItemsForStorage } from '../../shared/actionItems';
 import { getSetting } from '../store';
 import { createLogger } from '../logger';
 import {
@@ -548,22 +545,11 @@ class SessionManager {
         databaseService.updateSession(sessionId, { title: result.title });
       }
 
-      // Best-effort structured action items. Runs after the summary is stored
-      // so it never delays the summary write, and its own try/catch means a
-      // failure here never affects the summary result. Skipped when the
-      // summary covers them — the mode's template has an action-items section
-      // or the generated summary has one anyway; clear any earlier extraction
-      // so the card doesn't duplicate it.
-      const mode = modeId ? databaseService.getMode(modeId) : null;
-      const summaryCoversActionItems =
-        (mode && hasActionItemsSection(mode.notesTemplate)) ||
-        (notesOk && summaryHasActionItemsSection(result.summary));
-      if (summaryCoversActionItems) {
-        if (session.actionItemsJson) {
-          databaseService.updateSession(sessionId, { actionItemsJson: null });
-        }
-      } else {
-        await this.generateAndStoreActionItems(sessionId, transcriptText);
+      // This fork never extracts a separate action items card: it duplicated
+      // the summary's own section whenever that section wasn't titled
+      // "Action items" (e.g. "Действия"). Clear cards from earlier runs.
+      if (session.actionItemsJson) {
+        databaseService.updateSession(sessionId, { actionItemsJson: null });
       }
 
       // Fire-and-forget local transcript indexing for ask-my-meetings. Never
@@ -581,38 +567,6 @@ class SessionManager {
     } finally {
       this.sendDashboard('sessions:summary-done', sessionId);
       this.sendDashboard('sessions:list-updated');
-    }
-  }
-
-  /**
-   * Extract structured action items ({task, assignee, deadline}) from the
-   * transcript and persist them as JSON. Fully best-effort: any failure
-   * (no API key, model error, unparseable output) is logged and swallowed so
-   * the notes pipeline is never blocked. Reuses the notes-model action_items
-   * prompt via analyzeSession, so it runs on the user's own cheap notes model.
-   */
-  private async generateAndStoreActionItems(
-    sessionId: string,
-    transcriptText: string,
-  ): Promise<void> {
-    try {
-      const result = await analyzeSession({
-        transcript: transcriptText,
-        features: ['action_items'],
-        sessionId,
-      });
-      if (result.error) {
-        log.warn('Action item extraction skipped:', result.error);
-        return;
-      }
-      const normalized = normalizeActionItemsForStorage(
-        typeof result.actionItems === 'string' ? result.actionItems : null,
-      );
-      if (normalized) {
-        databaseService.updateSession(sessionId, { actionItemsJson: normalized });
-      }
-    } catch (err) {
-      log.error('Action item extraction failed (non-fatal):', err);
     }
   }
 

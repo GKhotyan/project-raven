@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildSessionSummaryPrompt,
   buildSessionTitlePrompt,
-  hasActionItemsSection,
   notesTemplateSections,
-  summaryHasActionItemsSection,
 } from '../services/sessionNotesPrompt'
 
 const YOUTUBE_DEMO_TRANSCRIPT = `You: Hello. How are you? I'm good. Thank you.
@@ -96,33 +94,5 @@ describe('buildSessionTitlePrompt', () => {
     expect(prompt).toContain('AI/ML Platform Testing and Training Efficiency Discussion')
     expect(prompt).toContain('Do not invent a meeting type')
     expect(prompt).toContain('start a YouTube video now')
-  })
-})
-
-describe('hasActionItemsSection', () => {
-  it('matches action-items section titles case-insensitively', () => {
-    expect(hasActionItemsSection([{ title: 'Action Items' }])).toBe(true)
-    expect(hasActionItemsSection([{ title: 'Summary' }, { title: 'action item' }])).toBe(true)
-    expect(hasActionItemsSection([{ title: 'Action-items & owners' }])).toBe(true)
-  })
-
-  it('returns false for templates without such a section', () => {
-    expect(hasActionItemsSection(null)).toBe(false)
-    expect(hasActionItemsSection([])).toBe(false)
-    expect(hasActionItemsSection([{ title: 'Decisions', instructions: 'action items go elsewhere' }])).toBe(false)
-  })
-})
-
-describe('summaryHasActionItemsSection', () => {
-  it('detects an action-items heading in the generated summary', () => {
-    expect(summaryHasActionItemsSection('Intro\n\n## Action items\n- Do it')).toBe(true)
-    expect(summaryHasActionItemsSection('### ACTION ITEMS:\n- Do it')).toBe(true)
-    expect(summaryHasActionItemsSection('## Action-item\n- Do it')).toBe(true)
-  })
-
-  it('ignores summaries without such a heading', () => {
-    expect(summaryHasActionItemsSection(null)).toBe(false)
-    expect(summaryHasActionItemsSection('')).toBe(false)
-    expect(summaryHasActionItemsSection('## Key points\n- We discussed action items briefly')).toBe(false)
   })
 })

@@ -671,72 +671,28 @@ describe('SessionManager', () => {
       expect(send).toHaveBeenCalledWith('sessions:summary-done', 'test-uuid-1234');
     });
 
-    it('stores normalized structured action items extracted from the transcript', async () => {
-      vi.mocked(analyzeSession).mockResolvedValueOnce({
-        actionItems: JSON.stringify([
-          { task: 'Send the deck', assignee: 'Sam', deadline: 'Friday' },
-        ]),
+    it('never extracts a separate action items card, whatever the summary headings', async () => {
+      vi.mocked(generateSessionSummary).mockResolvedValueOnce({
+        title: 'PIM Daily',
+        summary: '## Основные итоги\n- Обсудили релиз\n\n## Действия\n- **Саша** — дописать тест',
       });
-      mockDatabaseService.getSession.mockReturnValue(notesSession({ text: 'I will send the deck by Friday' }));
+      mockDatabaseService.getMode.mockReturnValue({
+        id: 'mode-1',
+        name: 'PIM Daily',
+        notesTemplate: [{ title: 'Summary', instructions: '' }, { title: 'Key points', instructions: '' }],
+      });
+      mockDatabaseService.getSession.mockReturnValue({ ...notesSession(), modeId: 'mode-1' });
 
       await sessionManager.generateAndStoreNotes('test-uuid-1234');
 
-      const write = mockDatabaseService.updateSession.mock.calls.find(
-        (call) => call[1] && Object.prototype.hasOwnProperty.call(call[1], 'actionItemsJson'),
-      );
-      expect(write).toBeDefined();
-      const stored = JSON.parse((write![1] as { actionItemsJson: string }).actionItemsJson);
-      expect(stored).toEqual([{ task: 'Send the deck', assignee: 'Sam', deadline: 'Friday' }]);
-    });
-
-    it('does not write action items when the model returns unparseable output', async () => {
-      vi.mocked(analyzeSession).mockResolvedValueOnce({ actionItems: 'not json at all' });
-      mockDatabaseService.getSession.mockReturnValue(notesSession());
-
-      await sessionManager.generateAndStoreNotes('test-uuid-1234');
-
-      expect(analyzeSession).toHaveBeenCalled();
+      expect(analyzeSession).not.toHaveBeenCalled();
       const writes = mockDatabaseService.updateSession.mock.calls.filter(
         (call) => call[1] && Object.prototype.hasOwnProperty.call(call[1], 'actionItemsJson'),
       );
       expect(writes).toHaveLength(0);
     });
 
-    it('skips action item extraction when the mode template has an Action Items section', async () => {
-      mockDatabaseService.getMode.mockReturnValue({
-        id: 'mode-1',
-        name: 'HRM Daily',
-        notesTemplate: [{ title: 'Action Items', instructions: 'What I committed to do.' }],
-      });
-      mockDatabaseService.getSession.mockReturnValue({ ...notesSession(), modeId: 'mode-1' });
-
-      await sessionManager.generateAndStoreNotes('test-uuid-1234');
-
-      expect(analyzeSession).not.toHaveBeenCalled();
-    });
-
-    it('clears previously extracted action items when the mode now covers them', async () => {
-      mockDatabaseService.getMode.mockReturnValue({
-        id: 'mode-1',
-        name: 'HRM Daily',
-        notesTemplate: [{ title: 'Action items', instructions: '' }],
-      });
-      mockDatabaseService.getSession.mockReturnValue({
-        ...notesSession(),
-        modeId: 'mode-1',
-        actionItemsJson: JSON.stringify([{ task: 'Old', assignee: null, deadline: null }]),
-      });
-
-      await sessionManager.generateAndStoreNotes('test-uuid-1234');
-
-      expect(mockDatabaseService.updateSession).toHaveBeenCalledWith('test-uuid-1234', { actionItemsJson: null });
-    });
-
-    it('skips action item extraction when the generated summary has its own Action items section', async () => {
-      vi.mocked(generateSessionSummary).mockResolvedValueOnce({
-        title: 'Test Title',
-        summary: '## Key points\n- Metrics ok\n\n## Action items\n- **Anton** — file the tasks today',
-      });
+    it('clears action items extracted by an earlier run', async () => {
       mockDatabaseService.getSession.mockReturnValue({
         ...notesSession(),
         actionItemsJson: JSON.stringify([{ task: 'Old', assignee: null, deadline: null }]),
@@ -746,28 +702,6 @@ describe('SessionManager', () => {
 
       expect(analyzeSession).not.toHaveBeenCalled();
       expect(mockDatabaseService.updateSession).toHaveBeenCalledWith('test-uuid-1234', { actionItemsJson: null });
-    });
-
-    it('still extracts action items when the mode template has no such section', async () => {
-      mockDatabaseService.getMode.mockReturnValue({
-        id: 'mode-1',
-        name: 'Daily',
-        notesTemplate: [{ title: 'Key points', instructions: '' }],
-      });
-      mockDatabaseService.getSession.mockReturnValue({ ...notesSession(), modeId: 'mode-1' });
-
-      await sessionManager.generateAndStoreNotes('test-uuid-1234');
-
-      expect(analyzeSession).toHaveBeenCalled();
-    });
-
-    it('never fails the notes job when action item extraction throws', async () => {
-      vi.mocked(analyzeSession).mockRejectedValueOnce(new Error('provider exploded'));
-      mockDatabaseService.getSession.mockReturnValue(notesSession());
-
-      const ok = await sessionManager.generateAndStoreNotes('test-uuid-1234');
-
-      expect(ok).toBe(true);
     });
   });
 
