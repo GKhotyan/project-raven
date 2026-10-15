@@ -31,6 +31,7 @@ This is a fork of [Laxcorp-Research/project-raven](https://github.com/Laxcorp-Re
   - Notes use GLM-5.3 Flash with high reasoning effort by default; session memory uses GLM-5.1.
   - GLM-5.3 Flash, GLM-5.3 FlashX and GLM-5V Turbo read screenshots; for text-only GLM models the screenshot is replaced with a note instead of failing the request.
 - **Notes see the whole meeting.** The summary and the follow-up email draft are built from the entire transcript (up to 300,000 characters) instead of only the first 8,000 or the last 6,000 characters, so decisions and action items from the end of a long call are no longer lost.
+- **No separate Action Items card.** Notes no longer run an extra extraction that duplicated the summary's own task section when the model titled it in another language (e.g. "Действия").
 - **Long Notes Template prompts are readable.** In the mode editor, each section's instructions wrap and the field grows with the text (scrolling past a max height), instead of a single line.
 
 <p align="center">
