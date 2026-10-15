@@ -902,11 +902,12 @@ export function ModeEditorModal({ isOpen, onClose }: ModeEditorModalProps) {
                               className="w-full text-sm font-medium text-gray-900 bg-transparent border-0 outline-none p-0 focus:ring-0"
                               placeholder="Section title"
                             />
-                            <input
-                              type="text"
+                            {/* Grows with the text so long prompts stay readable; scrolls past max height. */}
+                            <textarea
                               value={section.instructions}
                               onChange={(e) => handleUpdateSection(section.id, 'instructions', e.target.value)}
-                              className="w-full text-sm text-gray-500 bg-transparent border-0 outline-none p-0 mt-0.5 focus:ring-0"
+                              rows={1}
+                              className="w-full text-sm text-gray-500 bg-transparent border-0 outline-none p-0 mt-0.5 focus:ring-0 resize-none [field-sizing:content] max-h-80 overflow-y-auto"
                               placeholder="Instructions for Raven"
                             />
                           </div>
