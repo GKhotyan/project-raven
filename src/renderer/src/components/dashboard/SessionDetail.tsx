@@ -6,7 +6,7 @@ import { createLogger } from '../../lib/logger'
 import { isPlaceholderSessionTitle } from '../../../../shared/sessionDisplay'
 import { parseActionItems, type ActionItem } from '../../../../shared/actionItems'
 import { computeTalkRatio } from '../../../../shared/talkRatio'
-import { SUMMARY_CHANNELS, type SummaryChannel } from '../../../../shared/summaryPublish'
+import { parseSummaryChannels } from '../../../../shared/summaryPublish'
 import { SessionModePicker } from './SessionModePicker'
 import {
   findSegmentBreaks,
@@ -850,13 +850,22 @@ function SummaryTab({
 // Sends the finished summary (prose + Key points) to the n8n webhook that
 // publishes it to Mattermost under the picked channel.
 function SendSummaryControl({ sessionId }: { sessionId: string }) {
-  const [channel, setChannel] = useState<SummaryChannel>('cvm-daily')
+  const [channels, setChannels] = useState<string[]>([])
+  const [channel, setChannel] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setStatus('idle')
     setError(null)
+    window.raven
+      .storeGet('n8nChannels')
+      .then((value) => {
+        const list = parseSummaryChannels(value)
+        setChannels(list)
+        setChannel((current) => (list.includes(current) ? current : list[0] ?? ''))
+      })
+      .catch((err) => log.error('Failed to load summary channels:', err))
   }, [sessionId])
 
   const handleSend = async () => {
@@ -878,22 +887,30 @@ function SendSummaryControl({ sessionId }: { sessionId: string }) {
     }
   }
 
+  if (channels.length === 0) {
+    return (
+      <span className="text-xs text-gray-400" onClick={(e) => e.stopPropagation()}>
+        Add summary channels in Settings → Integrations to send this summary.
+      </span>
+    )
+  }
+
   return (
     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
       <button
         onClick={() => void handleSend()}
-        disabled={status === 'sending'}
+        disabled={status === 'sending' || !channel}
         className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
       >
         {status === 'sending' ? 'Sending...' : status === 'sent' ? 'Sent!' : 'Send summary'}
       </button>
       <select
         value={channel}
-        onChange={(e) => setChannel(e.target.value as SummaryChannel)}
+        onChange={(e) => setChannel(e.target.value)}
         disabled={status === 'sending'}
         className="px-2 py-1.5 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
       >
-        {SUMMARY_CHANNELS.map((value) => (
+        {channels.map((value) => (
           <option key={value} value={value}>
             {value}
           </option>

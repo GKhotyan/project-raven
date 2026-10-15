@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createLogger } from '../../../lib/logger'
+import { parseSummaryChannels } from '../../../../../shared/summaryPublish'
 
 const log = createLogger('Settings:Integrations')
 
@@ -8,6 +9,8 @@ export function IntegrationsTab() {
   const [webhookToken, setWebhookToken] = useState('')
   const [savedUrl, setSavedUrl] = useState('')
   const [savedToken, setSavedToken] = useState('')
+  const [channelsText, setChannelsText] = useState('')
+  const [savedChannels, setSavedChannels] = useState<string[]>([])
   const [showToken, setShowToken] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -21,6 +24,9 @@ export function IntegrationsTab() {
         setSavedUrl(url)
         setWebhookToken(token)
         setSavedToken(token)
+        const channels = parseSummaryChannels(await window.raven.storeGet('n8nChannels'))
+        setChannelsText(channels.join('\n'))
+        setSavedChannels(channels)
       } catch (error) {
         log.error('Failed to load n8n settings:', error)
       }
@@ -31,7 +37,9 @@ export function IntegrationsTab() {
   const trimmedUrl = webhookUrl.trim()
   const trimmedToken = webhookToken.trim()
   const urlInvalid = trimmedUrl !== '' && !/^https?:\/\/\S+$/i.test(trimmedUrl)
-  const hasChanges = trimmedUrl !== savedUrl || trimmedToken !== savedToken
+  const channels = parseSummaryChannels(channelsText)
+  const hasChanges =
+    trimmedUrl !== savedUrl || trimmedToken !== savedToken || channels.join('\n') !== savedChannels.join('\n')
 
   async function handleSave() {
     if (urlInvalid) return
@@ -39,8 +47,11 @@ export function IntegrationsTab() {
     try {
       await window.raven.storeSet('n8nWebhookUrl', trimmedUrl)
       await window.raven.storeSet('n8nWebhookToken', trimmedToken)
+      await window.raven.storeSet('n8nChannels', channels)
       setSavedUrl(trimmedUrl)
       setSavedToken(trimmedToken)
+      setSavedChannels(channels)
+      setChannelsText(channels.join('\n'))
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (error) {
@@ -87,6 +98,18 @@ export function IntegrationsTab() {
             {showToken ? 'Hide' : 'Show'}
           </button>
         </div>
+
+        <label className="block text-sm font-medium text-gray-700 mt-4 mb-1.5">Channels</label>
+        <textarea
+          value={channelsText}
+          onChange={(e) => setChannelsText(e.target.value)}
+          rows={4}
+          placeholder={'team-daily\nother-daily'}
+          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          One per line. "Send summary" offers these and sends the picked one as the meeting key prefix.
+        </p>
       </div>
 
       <button

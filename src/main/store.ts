@@ -90,6 +90,8 @@ export interface LocalSettings {
   // n8n webhook that publishes session summaries to Mattermost
   n8nWebhookUrl: string;
   n8nWebhookToken: string;
+  /** Channels "Send summary" offers; the first part of the meeting key. */
+  n8nChannels: string[];
 
   // Pro extensions store arbitrary keys via saveSetting()
   // (e.g. auth_tokens, auth_user, sync_queue, backendUrl)
@@ -132,6 +134,7 @@ const STORE_DEFAULTS: LocalSettings = {
   macUpdateDismissedVersion: '',
   n8nWebhookUrl: '',
   n8nWebhookToken: '',
+  n8nChannels: [],
 };
 
 function createStore(): Store<LocalSettings> {
@@ -220,6 +223,7 @@ export function getAllSettings(): LocalSettings {
     macUpdateDismissedVersion: store.get('macUpdateDismissedVersion'),
     n8nWebhookUrl: store.get('n8nWebhookUrl'),
     n8nWebhookToken: '',
+    n8nChannels: store.get('n8nChannels'),
     proOnboardingComplete: store.get('proOnboardingComplete'),
     proOnboardingStep: store.get('proOnboardingStep'),
     cachedUserProfile: store.get('cachedUserProfile' as keyof LocalSettings) || null,

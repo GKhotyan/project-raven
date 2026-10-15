@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { buildMeetingKey, extractPublishableSummary, isSummaryChannel } from '../../shared/summaryPublish'
+import { buildMeetingKey, extractPublishableSummary, parseSummaryChannels } from '../../shared/summaryPublish'
 
-describe('isSummaryChannel', () => {
-  it('accepts only the known channels', () => {
-    expect(isSummaryChannel('cvm-daily')).toBe(true)
-    expect(isSummaryChannel('hrm-daily')).toBe(true)
-    expect(isSummaryChannel('pim-daily')).toBe(true)
-    expect(isSummaryChannel('other')).toBe(false)
-    expect(isSummaryChannel(undefined)).toBe(false)
+describe('parseSummaryChannels', () => {
+  it('trims the saved list and drops blanks and duplicates', () => {
+    expect(parseSummaryChannels([' team-a ', '', 'team-b', 'team-a'])).toEqual(['team-a', 'team-b'])
+  })
+
+  it('splits a string by lines and commas', () => {
+    expect(parseSummaryChannels('team-a\nteam-b, team-c\n\n')).toEqual(['team-a', 'team-b', 'team-c'])
+  })
+
+  it('returns an empty list for anything else', () => {
+    expect(parseSummaryChannels(undefined)).toEqual([])
+    expect(parseSummaryChannels(null)).toEqual([])
+    expect(parseSummaryChannels([1, null])).toEqual([])
   })
 })
 

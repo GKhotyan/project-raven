@@ -560,10 +560,12 @@ app.whenReady().then(() => {
   })
 
   inflightHandle('sessions:send-summary', async (sessionId: string, channel: string) => {
-    const { isSummaryChannel, buildMeetingKey, extractPublishableSummary } = await import(
+    const { parseSummaryChannels, buildMeetingKey, extractPublishableSummary } = await import(
       '../shared/summaryPublish'
     )
-    if (!isSummaryChannel(channel)) return { ok: false, error: 'Unknown channel' }
+    if (!parseSummaryChannels(getSetting('n8nChannels')).includes(channel)) {
+      return { ok: false, error: 'Unknown channel. Check the channel list in Settings → Integrations.' }
+    }
 
     const url = ((getSetting('n8nWebhookUrl') as string) || '').trim()
     const token = ((getSetting('n8nWebhookToken') as string) || '').trim()

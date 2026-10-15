@@ -1,18 +1,26 @@
 /**
  * Publishing a session summary to Mattermost via an n8n webhook: the
- * channels the user can pick, the meeting key n8n groups posts by, and which
- * parts of the summary are sent.
+ * channels the user can pick (set in Settings → Integrations), the meeting
+ * key n8n groups posts by, and which parts of the summary are sent.
  */
 
-export const SUMMARY_CHANNELS = ['cvm-daily', 'hrm-daily', 'pim-daily'] as const
-export type SummaryChannel = (typeof SUMMARY_CHANNELS)[number]
-
-export function isSummaryChannel(value: unknown): value is SummaryChannel {
-  return typeof value === 'string' && (SUMMARY_CHANNELS as readonly string[]).includes(value)
+/**
+ * The channels saved in settings (`n8nChannels`), trimmed, without blanks
+ * or duplicates. Accepts a string too, one channel per line or comma.
+ */
+export function parseSummaryChannels(value: unknown): string[] {
+  const items = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[\n,]/) : []
+  const channels: string[] = []
+  for (const item of items) {
+    if (typeof item !== 'string') continue
+    const channel = item.trim()
+    if (channel && !channels.includes(channel)) channels.push(channel)
+  }
+  return channels
 }
 
 /** "<channel>:YYYY-MM-DD", using the local date the session started. */
-export function buildMeetingKey(channel: SummaryChannel, startedAt: number): string {
+export function buildMeetingKey(channel: string, startedAt: number): string {
   const date = new Date(startedAt)
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
