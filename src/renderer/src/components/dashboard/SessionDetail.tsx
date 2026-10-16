@@ -847,7 +847,7 @@ function SummaryTab({
   )
 }
 
-// Sends the finished summary (prose + Key points) to the n8n webhook that
+// Sends the whole finished summary to the n8n webhook that
 // publishes it to Mattermost under the picked channel.
 function SendSummaryControl({ sessionId }: { sessionId: string }) {
   const [channels, setChannels] = useState<string[]>([])

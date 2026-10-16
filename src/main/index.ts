@@ -560,7 +560,7 @@ app.whenReady().then(() => {
   })
 
   inflightHandle('sessions:send-summary', async (sessionId: string, channel: string) => {
-    const { parseSummaryChannels, buildMeetingKey, extractPublishableSummary } = await import(
+    const { parseSummaryChannels, buildMeetingKey, formatSummaryForPost } = await import(
       '../shared/summaryPublish'
     )
     if (!parseSummaryChannels(getSetting('n8nChannels')).includes(channel)) {
@@ -575,7 +575,7 @@ app.whenReady().then(() => {
 
     const session = databaseService.getSession(sessionId)
     if (!session) return { ok: false, error: 'Session not found' }
-    const summary = extractPublishableSummary(session.summary, session.summaryModel)
+    const summary = formatSummaryForPost(session.summary, session.summaryModel)
     if (!summary) return { ok: false, error: 'This session has no summary to send.' }
 
     const { publishSummary } = await import('./services/summaryPublishService')
