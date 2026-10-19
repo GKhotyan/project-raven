@@ -144,11 +144,14 @@ class SessionManager {
     this.isIncognito = getSetting('incognitoMode') === true;
 
     const resolvedModeId = modeId ?? databaseService.getActiveMode()?.id ?? null;
+    // A mode can name its sessions; a real title also skips the LLM title.
+    const mode = resolvedModeId ? databaseService.getMode(resolvedModeId) : null;
+    const modeTitle = mode?.titleFromMode ? mode.name.trim() : '';
     const now = Date.now();
     this.resetResumeState(now);
     const session: Session = {
       id: uuidv4(),
-      title: this.isIncognito ? 'Incognito Session' : PLACEHOLDER_SESSION_TITLE,
+      title: this.isIncognito ? 'Incognito Session' : modeTitle || PLACEHOLDER_SESSION_TITLE,
       transcript: [],
       aiResponses: [],
       summary: null,

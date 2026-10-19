@@ -263,6 +263,7 @@ export function ModeEditorModal({ isOpen, onClose }: ModeEditorModalProps) {
   const [formName, setFormName] = useState('')
   const [formPrompt, setFormPrompt] = useState('')
   const [formNotesTemplate, setFormNotesTemplate] = useState<NotesSection[] | null>(null)
+  const [formTitleFromMode, setFormTitleFromMode] = useState(false)
   const [contextFiles, setContextFiles] = useState<Array<{ id: string; fileName: string; fileSize: number; fileType: string; chunkCount: number }>>([])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<{ stage: string; current: number; total: number } | null>(null)
@@ -308,6 +309,7 @@ export function ModeEditorModal({ isOpen, onClose }: ModeEditorModalProps) {
       setFormName(selectedMode.name)
       setFormPrompt(selectedMode.systemPrompt)
       setFormNotesTemplate(selectedMode.notesTemplate ? [...selectedMode.notesTemplate] : null)
+      setFormTitleFromMode(selectedMode.titleFromMode === true)
       loadContextFiles(selectedMode.id)
     } else {
       setContextFiles([])
@@ -415,6 +417,7 @@ export function ModeEditorModal({ isOpen, onClose }: ModeEditorModalProps) {
         name: formName.trim() || 'Untitled Mode',
         systemPrompt: formPrompt,
         notesTemplate: formNotesTemplate,
+        titleFromMode: formTitleFromMode,
       })
       await loadModes()
 
@@ -775,6 +778,15 @@ export function ModeEditorModal({ isOpen, onClose }: ModeEditorModalProps) {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6">
+                <label className="flex items-center gap-2 mb-6 text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formTitleFromMode}
+                    onChange={(e) => setFormTitleFromMode(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  Use the mode name as the session title (instead of an AI-generated one)
+                </label>
                 <div className="space-y-4">
                   <label className="block text-sm font-medium text-gray-700">
                     Real-time prompt

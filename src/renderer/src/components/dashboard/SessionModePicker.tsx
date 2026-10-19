@@ -68,6 +68,9 @@ export function SessionModePicker({
     setCurrentId(mode.id)
     try {
       await window.raven.sessions.update(sessionId, { modeId: mode.id })
+      if (mode.titleFromMode && mode.name.trim()) {
+        await window.raven.sessions.updateTitle(sessionId, mode.name.trim())
+      }
     } catch (err) {
       log.error('Failed to change session mode:', err)
       setCurrentId(previous)

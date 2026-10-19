@@ -185,8 +185,8 @@ describe('DatabaseService', () => {
 
       // The migrate() method calls exec() for the migrations table creation
       expect(mockExec).toHaveBeenCalled()
-      // transaction() should be called once per unapplied migration (21 total)
-      expect(mockTransactionFn).toHaveBeenCalledTimes(21)
+      // transaction() should be called once per unapplied migration (22 total)
+      expect(mockTransactionFn).toHaveBeenCalledTimes(22)
     })
 
     it('skips migrations already applied', () => {
@@ -212,6 +212,7 @@ describe('DatabaseService', () => {
         { name: '019_add_session_resume' },
         { name: '020_add_chunk_embedding_model' },
         { name: '021_add_session_summary_model' },
+        { name: '022_add_mode_title_from_mode' },
       ])
 
       databaseService.initialize()
@@ -227,8 +228,8 @@ describe('DatabaseService', () => {
 
       databaseService.initialize()
 
-      // 19 unapplied migrations remain (003 through 021)
-      expect(mockTransactionFn).toHaveBeenCalledTimes(19)
+      // 20 unapplied migrations remain (003 through 022)
+      expect(mockTransactionFn).toHaveBeenCalledTimes(20)
     })
 
     it('is idempotent - second call is a no-op', () => {

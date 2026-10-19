@@ -139,6 +139,22 @@ describe('SessionManager', () => {
       // updateSession is called when ending the first session
       expect(mockDatabaseService.updateSession).toHaveBeenCalled();
     });
+
+    it('names the session after a mode that asks for it', () => {
+      mockDatabaseService.getMode.mockReturnValueOnce({ id: 'mode-1', name: 'Daily standup', titleFromMode: true });
+
+      const session = sessionManager.startSession('mode-1');
+
+      expect(session.title).toBe('Daily standup');
+    });
+
+    it('keeps the placeholder title for a mode without the option', () => {
+      mockDatabaseService.getMode.mockReturnValueOnce({ id: 'mode-1', name: 'Daily standup', titleFromMode: false });
+
+      const session = sessionManager.startSession('mode-1');
+
+      expect(session.title).toBe('Untitled Session');
+    });
   });
 
   describe('addTranscriptEntry', () => {

@@ -40,6 +40,8 @@ export interface Mode {
   isDefault: boolean;
   isBuiltin: boolean;
   notesTemplate: NotesSection[] | null;
+  /** Name sessions recorded in this mode after the mode instead of asking the notes model. */
+  titleFromMode?: boolean;
   createdAt: number;
   updatedAt: number;
   syncedAt: number | null;
@@ -115,6 +117,7 @@ export interface ModeRow {
   is_default: number;
   is_builtin: number;
   notes_template_json: string | null;
+  title_from_mode?: number | null;
   created_at: number;
   updated_at: number;
   synced_at: number | null;
@@ -551,6 +554,14 @@ class DatabaseService {
         name: '021_add_session_summary_model',
         sql: `
           ALTER TABLE sessions ADD COLUMN summary_model TEXT DEFAULT NULL;
+        `,
+      },
+      {
+        // 1 = sessions in this mode take the mode's name as their title
+        // instead of an LLM-generated one.
+        name: '022_add_mode_title_from_mode',
+        sql: `
+          ALTER TABLE modes ADD COLUMN title_from_mode INTEGER NOT NULL DEFAULT 0;
         `,
       },
     ];
@@ -1038,8 +1049,8 @@ class DatabaseService {
 
     this.db
       .prepare(
-        `INSERT INTO modes (id, name, system_prompt, icon, color, is_default, is_builtin, notes_template_json, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO modes (id, name, system_prompt, icon, color, is_default, is_builtin, notes_template_json, title_from_mode, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         fullMode.id,
@@ -1050,6 +1061,7 @@ class DatabaseService {
         fullMode.isDefault ? 1 : 0,
         fullMode.isBuiltin ? 1 : 0,
         fullMode.notesTemplate ? JSON.stringify(fullMode.notesTemplate) : null,
+        fullMode.titleFromMode ? 1 : 0,
         fullMode.createdAt,
         fullMode.updatedAt
       );
@@ -1066,8 +1078,8 @@ class DatabaseService {
 
     this.db
       .prepare(
-        `INSERT OR IGNORE INTO modes (id, name, system_prompt, icon, color, is_default, is_builtin, notes_template_json, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT OR IGNORE INTO modes (id, name, system_prompt, icon, color, is_default, is_builtin, notes_template_json, title_from_mode, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         fullMode.id,
@@ -1078,6 +1090,7 @@ class DatabaseService {
         fullMode.isDefault ? 1 : 0,
         fullMode.isBuiltin ? 1 : 0,
         fullMode.notesTemplate ? JSON.stringify(fullMode.notesTemplate) : null,
+        fullMode.titleFromMode ? 1 : 0,
         fullMode.createdAt,
         fullMode.updatedAt
       );
@@ -1176,6 +1189,10 @@ class DatabaseService {
     if (updates.notesTemplate !== undefined) {
       setClauses.push('notes_template_json = ?');
       values.push(updates.notesTemplate ? JSON.stringify(updates.notesTemplate) : null);
+    }
+    if (updates.titleFromMode !== undefined) {
+      setClauses.push('title_from_mode = ?');
+      values.push(updates.titleFromMode ? 1 : 0);
     }
 
     values.push(id);
@@ -1323,6 +1340,7 @@ class DatabaseService {
       isDefault: false,
       isBuiltin: false,
       notesTemplate: original.notesTemplate,
+      titleFromMode: original.titleFromMode,
     });
   }
 
@@ -1374,6 +1392,7 @@ class DatabaseService {
       isDefault: row.is_default === 1,
       isBuiltin: row.is_builtin === 1,
       notesTemplate: row.notes_template_json ? (() => { try { return JSON.parse(row.notes_template_json) } catch (err) { log.warn('Corrupted notesTemplate JSON for mode', row.id, err); return null } })() : null,
+      titleFromMode: row.title_from_mode === 1,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       syncedAt: row.synced_at ?? null,

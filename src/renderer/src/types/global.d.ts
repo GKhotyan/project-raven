@@ -34,6 +34,7 @@ export interface Mode {
   isDefault: boolean;
   isBuiltin: boolean;
   notesTemplate: NotesSection[] | null;
+  titleFromMode?: boolean;
   createdAt: number;
   updatedAt: number;
 }
