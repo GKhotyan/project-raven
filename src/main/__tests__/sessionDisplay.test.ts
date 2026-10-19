@@ -30,7 +30,6 @@ describe('shouldShowSessionNotesGenerating', () => {
         updatedAt: now - 12 * 60 * 60 * 1000,
         now,
         pending: true,
-        hasSummary: false,
       }),
     ).toBe(true)
   })
@@ -44,7 +43,6 @@ describe('shouldShowSessionNotesGenerating', () => {
         updatedAt: now - 12 * 60 * 60 * 1000,
         now,
         pending: false,
-        hasSummary: false,
       }),
     ).toBe(false)
   })
@@ -58,7 +56,6 @@ describe('shouldShowSessionNotesGenerating', () => {
         updatedAt: now - 30_000,
         now,
         pending: false,
-        hasSummary: false,
       }),
     ).toBe(true)
   })
@@ -85,7 +82,20 @@ describe('shouldShowSessionNotesGenerating', () => {
         updatedAt: now - SESSION_NOTES_PROCESSING_MS - 1,
         now,
         pending: false,
-        hasSummary: false,
+      }),
+    ).toBe(false)
+  })
+
+  it('does not show processing for a titled session without a summary', () => {
+    // Summaries are generated on demand, so a missing one is not in progress.
+    expect(
+      shouldShowSessionNotesGenerating({
+        isActive: false,
+        title: 'HRM Daily',
+        durationSeconds: 90,
+        updatedAt: now - 30_000,
+        now,
+        pending: false,
       }),
     ).toBe(false)
   })
@@ -99,7 +109,6 @@ describe('shouldShowSessionNotesGenerating', () => {
         updatedAt: now,
         now,
         pending: true,
-        hasSummary: false,
       }),
     ).toBe(false)
   })

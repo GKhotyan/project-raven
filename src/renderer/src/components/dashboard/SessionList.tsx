@@ -19,7 +19,6 @@ interface Session {
   duration: number // in seconds
   createdAt: number
   updatedAt: number
-  hasSummary: boolean
   isActive?: boolean
 }
 
@@ -168,7 +167,6 @@ export function SessionList({ onSessionSelect, activeSessionId, activeSession, s
         duration: session.durationSeconds ?? 0,
         createdAt: session.startedAt ?? session.createdAt,
         updatedAt: session.endedAt ?? session.createdAt,
-        hasSummary: Boolean(session.summary?.trim()),
       }))
       setSessions(mapped)
     } catch (err) {
@@ -274,7 +272,6 @@ export function SessionList({ onSessionSelect, activeSessionId, activeSession, s
           duration: activeSession.durationSeconds ?? 0,
           createdAt: activeSession.startedAt,
           updatedAt: activeSession.startedAt,
-          hasSummary: false,
         }
         const existingIndex = sessions.findIndex((session) => session.id === activeSession.id)
         if (existingIndex === -1) {
@@ -317,7 +314,6 @@ export function SessionList({ onSessionSelect, activeSessionId, activeSession, s
                 updatedAt: session.updatedAt,
                 now: Date.now(),
                 pending: pendingNotesIds.has(session.id) || regeneratingId === session.id,
-                hasSummary: session.hasSummary,
               })
               const displayTitle = isActive
                 ? 'Untitled session'
