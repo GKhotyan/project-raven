@@ -1,22 +1,12 @@
 /**
  * Publishing a session summary to Mattermost via an n8n webhook: the
- * channels the user can pick (set in Settings → Integrations), the meeting
- * key n8n groups posts by, and how the summary is formatted for the post.
+ * channel taken from the session's mode, the meeting key n8n groups posts
+ * by, and how the summary is formatted for the post.
  */
 
-/**
- * The channels saved in settings (`n8nChannels`), trimmed, without blanks
- * or duplicates. Accepts a string too, one channel per line or comma.
- */
-export function parseSummaryChannels(value: unknown): string[] {
-  const items = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[\n,]/) : []
-  const channels: string[] = []
-  for (const item of items) {
-    if (typeof item !== 'string') continue
-    const channel = item.trim()
-    if (channel && !channels.includes(channel)) channels.push(channel)
-  }
-  return channels
+/** The session's mode name, lowercased, with spaces as dashes: "HRM Daily" → "hrm-daily". */
+export function channelFromModeName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, '-')
 }
 
 /** "<channel>:YYYY-MM-DD", using the local date the session started. */

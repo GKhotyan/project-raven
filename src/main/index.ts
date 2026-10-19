@@ -559,13 +559,10 @@ app.whenReady().then(() => {
     return result
   })
 
-  inflightHandle('sessions:send-summary', async (sessionId: string, channel: string) => {
-    const { parseSummaryChannels, buildMeetingKey, formatSummaryForPost } = await import(
+  inflightHandle('sessions:send-summary', async (sessionId: string) => {
+    const { channelFromModeName, buildMeetingKey, formatSummaryForPost } = await import(
       '../shared/summaryPublish'
     )
-    if (!parseSummaryChannels(getSetting('n8nChannels')).includes(channel)) {
-      return { ok: false, error: 'Unknown channel. Check the channel list in Settings → Integrations.' }
-    }
 
     const url = ((getSetting('n8nWebhookUrl') as string) || '').trim()
     const token = ((getSetting('n8nWebhookToken') as string) || '').trim()
@@ -577,6 +574,9 @@ app.whenReady().then(() => {
     if (!session) return { ok: false, error: 'Session not found' }
     const summary = formatSummaryForPost(session.summary, session.summaryModel)
     if (!summary) return { ok: false, error: 'This session has no summary to send.' }
+    const mode = session.modeId ? databaseService.getMode(session.modeId) : null
+    const channel = mode ? channelFromModeName(mode.name) : ''
+    if (!channel) return { ok: false, error: 'Pick a mode for this session to send its summary.' }
 
     const { publishSummary } = await import('./services/summaryPublishService')
     return publishSummary({

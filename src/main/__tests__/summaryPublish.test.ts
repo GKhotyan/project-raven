@@ -1,19 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { buildMeetingKey, formatSummaryForPost, parseSummaryChannels } from '../../shared/summaryPublish'
+import { buildMeetingKey, channelFromModeName, formatSummaryForPost } from '../../shared/summaryPublish'
 
-describe('parseSummaryChannels', () => {
-  it('trims the saved list and drops blanks and duplicates', () => {
-    expect(parseSummaryChannels([' team-a ', '', 'team-b', 'team-a'])).toEqual(['team-a', 'team-b'])
+describe('channelFromModeName', () => {
+  it('lowercases the mode name and turns spaces into dashes', () => {
+    expect(channelFromModeName('HRM Daily')).toBe('hrm-daily')
   })
 
-  it('splits a string by lines and commas', () => {
-    expect(parseSummaryChannels('team-a\nteam-b, team-c\n\n')).toEqual(['team-a', 'team-b', 'team-c'])
+  it('trims the name and collapses runs of spaces', () => {
+    expect(channelFromModeName('  CVM   Daily  ')).toBe('cvm-daily')
   })
 
-  it('returns an empty list for anything else', () => {
-    expect(parseSummaryChannels(undefined)).toEqual([])
-    expect(parseSummaryChannels(null)).toEqual([])
-    expect(parseSummaryChannels([1, null])).toEqual([])
+  it('keeps non-latin names', () => {
+    expect(channelFromModeName('Груминг PIM')).toBe('груминг-pim')
   })
 })
 

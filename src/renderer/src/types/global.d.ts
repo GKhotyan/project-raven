@@ -163,7 +163,7 @@ declare global {
         delete: (id: string) => Promise<boolean>;
         regenerateSummary: (id: string) => Promise<boolean>;
         draftFollowup: (id: string) => Promise<{ email?: string; error?: string }>;
-        sendSummary: (id: string, channel: string) => Promise<{ ok: boolean; error?: string }>;
+        sendSummary: (id: string) => Promise<{ ok: boolean; error?: string }>;
         export: (
           id: string,
           format: 'markdown' | 'pdf',
