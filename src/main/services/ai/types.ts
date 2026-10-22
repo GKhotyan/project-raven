@@ -1,4 +1,5 @@
 import type { AIProviderName } from '../../../shared/aiSlots';
+import { modelAcceptsImages } from '../../../shared/screenshots';
 
 export type { AIProviderName };
 
@@ -301,7 +302,7 @@ export function buildZaiThinkingParams(
 
 /** Text-only GLM models answer 400 on image_url parts. */
 export function zaiModelAcceptsImages(model: string): boolean {
-  return model === 'glm-5v-turbo' || model === 'glm-5.3-flash' || model === 'glm-5.3-flashx';
+  return modelAcceptsImages('zai', model);
 }
 
 /** Display label for a catalog model ("GLM-5.3 Flash"); the id when it is not in the catalog. */
