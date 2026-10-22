@@ -66,6 +66,7 @@ import { AudioManager } from './audioManager'
 import { ClaudeService } from './claudeService'
 import { registerSystemAudioHandlers } from './systemAudioNative'
 import { databaseService, type Session, type Mode } from './services/database'
+import { createScreenshotStore, setScreenshotStore } from './services/screenshotStore'
 import { sessionManager } from './services/sessionManager'
 import { ensureActiveMode, createDefaultMode, migrateGeneralAssistantPromptV21 } from './services/builtinModes'
 import { initializeVendorFeatures, shutdownVendorFeatures } from './services/vendorFeatures'
@@ -425,6 +426,11 @@ app.whenReady().then(() => {
 
   // Initialize database
   databaseService.initialize()
+  setScreenshotStore(createScreenshotStore({
+    rootDir: join(app.getPath('userData'), 'data', 'screenshots'),
+    getList: (id) => databaseService.getSessionScreenshots(id),
+    setList: (id, list) => databaseService.setSessionScreenshots(id, list),
+  }))
   ensureActiveMode()
   // One-time content migration: upgrade pre-v2.1 General Assistant mode
   // to the new prompt + notesTemplate if the user hasn't edited it.
@@ -483,6 +489,9 @@ app.whenReady().then(() => {
   safeHandle('sessions:delete', (id: string) => {
     const deleted = databaseService.deleteSession(id)
     if (deleted) {
+      void import('./services/screenshotStore')
+        .then((m) => m.getScreenshotStore().removeAll(id))
+        .catch(() => {})
       // Drop the in-memory QA index cache so a deleted session's chunks
       // (already removed from the DB) are not served in future answers.
       void import('./services/sessionQaService')
