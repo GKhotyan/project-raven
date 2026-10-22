@@ -645,6 +645,11 @@ class SessionManager {
     return this.activeSession !== null;
   }
 
+  /** True while an incognito recording runs; nothing from it is persisted. */
+  isIncognitoSession(): boolean {
+    return this.activeSession !== null && this.isIncognito;
+  }
+
   /**
    * Auto-save current session to database
    */

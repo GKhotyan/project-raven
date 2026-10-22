@@ -66,7 +66,8 @@ import { AudioManager } from './audioManager'
 import { ClaudeService } from './claudeService'
 import { registerSystemAudioHandlers } from './systemAudioNative'
 import { databaseService, type Session, type Mode } from './services/database'
-import { createScreenshotStore, setScreenshotStore } from './services/screenshotStore'
+import { createScreenshotStore, getScreenshotStore, setScreenshotStore } from './services/screenshotStore'
+import { createScreenshotHandlers } from './screenshotIpc'
 import { sessionManager } from './services/sessionManager'
 import { ensureActiveMode, createDefaultMode, migrateGeneralAssistantPromptV21 } from './services/builtinModes'
 import { initializeVendorFeatures, shutdownVendorFeatures } from './services/vendorFeatures'
@@ -509,6 +510,26 @@ app.whenReady().then(() => {
     }
     return deleted
   })
+
+  {
+    const shots = createScreenshotHandlers({
+      store: getScreenshotStore(),
+      getActiveSession: () => sessionManager.getActiveSession(),
+      isIncognito: () => sessionManager.isIncognitoSession(),
+    })
+    safeHandle('screenshots:add', (bytes: unknown) => {
+      const res = shots.add(bytes)
+      if (res.ok) BrowserWindow.getAllWindows().forEach((win) => win.webContents.send('screenshots:changed', res.value.sessionId))
+      return res
+    })
+    safeHandle('screenshots:list', (sessionId?: unknown) => shots.list(sessionId))
+    safeHandle('screenshots:read', (sessionId: unknown, id: unknown) => shots.read(sessionId, id))
+    safeHandle('screenshots:remove', (sessionId: unknown, id: unknown) => {
+      const res = shots.remove(sessionId, id)
+      BrowserWindow.getAllWindows().forEach((win) => win.webContents.send('screenshots:changed', sessionId))
+      return res
+    })
+  }
 
   safeHandle('sessions:update-title', (id: string, title: string) => {
     databaseService.updateSession(id, { title })

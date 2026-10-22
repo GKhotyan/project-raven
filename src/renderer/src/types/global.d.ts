@@ -1,5 +1,14 @@
 import type { AskConversationState } from '../lib/useAskConversation';
 
+interface SessionScreenshot {
+  id: string;
+  timestamp: number;
+  file: string;
+  mediaType: 'image/png' | 'image/jpeg';
+}
+
+type ScreenshotResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
 interface TranscriptEntry {
   id: string;
   source: 'mic' | 'system';
@@ -152,6 +161,13 @@ declare global {
       systemAudioIsAvailable: () => Promise<boolean>;
       systemAudioHasPermission: () => Promise<boolean>;
       systemAudioRequestPermission: () => Promise<boolean>;
+      screenshots: {
+        add: (bytes: Uint8Array) => Promise<ScreenshotResult<SessionScreenshot & { sessionId: string }>>;
+        list: (sessionId?: string) => Promise<ScreenshotResult<{ sessionId: string | null; screenshots: SessionScreenshot[] }>>;
+        read: (sessionId: string, id: string) => Promise<ScreenshotResult<string>>;
+        remove: (sessionId: string, id: string) => Promise<ScreenshotResult<true>>;
+        onChanged: (cb: (sessionId: string) => void) => () => void;
+      };
       sessions: {
         create: (session: Omit<Session, 'createdAt'>) => Promise<Session>;
         update: (id: string, updates: Partial<Session>) => Promise<boolean>;

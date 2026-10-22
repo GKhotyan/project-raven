@@ -65,6 +65,17 @@ contextBridge.exposeInMainWorld('raven', {
   systemAudioIsAvailable: () => ipcRenderer.invoke('system-audio:is-available'),
   systemAudioHasPermission: () => ipcRenderer.invoke('system-audio:has-permission'),
   systemAudioRequestPermission: () => ipcRenderer.invoke('system-audio:request-permission'),
+  screenshots: {
+    add: (bytes: Uint8Array) => ipcRenderer.invoke('screenshots:add', bytes),
+    list: (sessionId?: string) => ipcRenderer.invoke('screenshots:list', sessionId),
+    read: (sessionId: string, id: string) => ipcRenderer.invoke('screenshots:read', sessionId, id),
+    remove: (sessionId: string, id: string) => ipcRenderer.invoke('screenshots:remove', sessionId, id),
+    onChanged: (cb: (sessionId: string) => void) => {
+      const listener = (_e: unknown, sessionId: string) => cb(sessionId)
+      ipcRenderer.on('screenshots:changed', listener)
+      return () => { ipcRenderer.removeListener('screenshots:changed', listener) }
+    },
+  },
   sessions: {
     create: (session: unknown) => ipcRenderer.invoke('sessions:create', session),
     update: (id: string, updates: unknown) => ipcRenderer.invoke('sessions:update', id, updates),
