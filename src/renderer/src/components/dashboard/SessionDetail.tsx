@@ -7,6 +7,9 @@ import { isPlaceholderSessionTitle } from '../../../../shared/sessionDisplay'
 import { parseActionItems, type ActionItem } from '../../../../shared/actionItems'
 import { computeTalkRatio } from '../../../../shared/talkRatio'
 import { SessionModePicker } from './SessionModePicker'
+import { ScreenshotTile, ScreenshotLightbox } from './SessionScreenshots'
+import { useSessionScreenshots } from './useSessionScreenshots'
+import { placeScreenshots } from '../../../../shared/screenshots'
 import {
   findSegmentBreaks,
   parseSessionSegments,
@@ -574,6 +577,8 @@ export function SessionDetail({ session, onBack, onUpdateTitle, isRecording = fa
                   )}
                   {activeTab === 'transcript' && (
                     <TranscriptTab
+                      sessionId={session.id}
+                      startedAt={session.startedAt}
                       transcript={session.transcript}
                       displayName={displayName}
                       segments={parseSessionSegments(session.segmentsJson)}
@@ -1369,24 +1374,53 @@ function SessionAskChat({ sessionId, initial }: { sessionId: string; initial: As
 }
 
 function TranscriptTab({
+  sessionId,
+  startedAt,
   transcript,
   displayName,
   segments = [],
 }: {
+  sessionId: string
+  startedAt: number
   transcript: TranscriptEntry[]
   displayName: string
   segments?: SessionSegment[]
 }) {
-  if (!transcript || transcript.length === 0) {
+  const { shots, remove } = useSessionScreenshots(sessionId)
+  const [openUrl, setOpenUrl] = useState<string | null>(null)
+
+  if ((!transcript || transcript.length === 0) && shots.length === 0) {
     return <p className="text-gray-400 text-lg">No transcript available</p>
   }
 
   const userName = displayName || 'You'
   const utterances = parseTranscript(transcript, userName)
   const breaks = findSegmentBreaks(utterances.map((u) => u.at), segments)
+  const placed = placeScreenshots(utterances.map((u) => u.at), shots.map((s) => s.shot))
+  const byId = new Map(shots.map((s) => [s.shot.id, s]))
+  const numberOf = new Map(
+    [...shots].sort((a, b) => a.shot.timestamp - b.shot.timestamp).map((s, i) => [s.shot.id, i + 1]),
+  )
+  const tile = (id: string) => {
+    const loaded = byId.get(id)
+    if (!loaded) return null
+    return (
+      <ScreenshotTile
+        key={id}
+        loaded={loaded}
+        index={numberOf.get(id) ?? 0}
+        startedAt={startedAt}
+        onOpen={() => setOpenUrl(loaded.url)}
+        onRemove={() => {
+          if (window.confirm('Delete this screenshot? Regenerate the summary afterwards to drop it from the notes.')) void remove(id)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="space-y-4">
+      {placed.leading.map((s) => tile(s.id))}
       {utterances.map((utterance, index) => (
         <div key={index}>
           {breaks.has(index) && (
@@ -1409,8 +1443,10 @@ function TranscriptTab({
             )}
           </div>
           <p className="text-gray-700 leading-relaxed">{utterance.text}</p>
+          {placed.after.get(index)?.map((s) => tile(s.id))}
         </div>
       ))}
+      {openUrl && <ScreenshotLightbox url={openUrl} onClose={() => setOpenUrl(null)} />}
     </div>
   )
 }
