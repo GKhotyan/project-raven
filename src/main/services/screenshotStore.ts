@@ -40,9 +40,12 @@ export function createScreenshotStore(deps: {
   setList(sessionId: string, list: SessionScreenshot[]): void;
   now?: () => number;
   newId?: () => string;
+  /** Shrinks or re-encodes a validated image before it is written. */
+  prepare?: (bytes: Uint8Array, mediaType: ScreenshotMediaType) => { bytes: Uint8Array; mediaType: ScreenshotMediaType };
 }): ScreenshotStore {
   const now = deps.now ?? Date.now;
   const newId = deps.newId ?? (() => randomUUID());
+  const prepare = deps.prepare ?? ((bytes, mediaType) => ({ bytes, mediaType }));
 
   const sessionDir = (sessionId: string): string => {
     if (!SAFE_ID.test(sessionId)) throw new ScreenshotError('Invalid session.');
@@ -59,13 +62,14 @@ export function createScreenshotStore(deps: {
   const store: ScreenshotStore = {
     add(sessionId, bytes) {
       const dir = sessionDir(sessionId);
-      const mediaType = sniffType(bytes);
-      if (!mediaType) throw new ScreenshotError('Only PNG and JPEG images can be added.');
+      const sniffed = sniffType(bytes);
+      if (!sniffed) throw new ScreenshotError('Only PNG and JPEG images can be added.');
       if (bytes.length > MAX_SCREENSHOT_BYTES) throw new ScreenshotError('Screenshot is larger than 10 MB.');
       const list = deps.getList(sessionId);
       if (list.length >= MAX_SCREENSHOTS_PER_SESSION) {
         throw new ScreenshotError(`This session already has ${MAX_SCREENSHOTS_PER_SESSION} screenshots.`);
       }
+      const { bytes: stored, mediaType } = prepare(bytes, sniffed);
       const id = newId();
       const shot: SessionScreenshot = {
         id,
@@ -74,7 +78,7 @@ export function createScreenshotStore(deps: {
         mediaType,
       };
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, shot.file), Buffer.from(bytes));
+      writeFileSync(join(dir, shot.file), Buffer.from(stored));
       deps.setList(sessionId, [...list, shot]);
       return shot;
     },

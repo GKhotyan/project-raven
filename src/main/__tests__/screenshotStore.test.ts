@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
@@ -80,6 +80,25 @@ describe('screenshotStore', () => {
     expect(existsSync(join(root, 'secret.png'))).toBe(true)
     expect(() => store.add('../evil', PNG)).toThrow()
     expect(readdirSync(root)).toEqual(['secret.png'])
+  })
+
+  it('stores what prepare returns, so oversized images are shrunk before they reach a model', () => {
+    const shrunk = Uint8Array.from([0xff, 0xd8, 0xff, 0xdb, 9])
+    const prepare = vi.fn(() => ({ bytes: shrunk, mediaType: 'image/jpeg' as const }))
+    const shrinking = createScreenshotStore({
+      rootDir: root,
+      getList: (s) => lists.get(s) ?? [],
+      setList: (s, l) => { lists.set(s, l) },
+      now: () => 1_000,
+      newId: () => 'big1',
+      prepare,
+    })
+
+    const shot = shrinking.add('sess1', PNG)
+
+    expect(prepare).toHaveBeenCalledWith(PNG, 'image/png')
+    expect(shot).toEqual({ id: 'big1', timestamp: 1_000, file: 'big1.jpg', mediaType: 'image/jpeg' })
+    expect(shrinking.read('sess1', 'big1')).toEqual({ base64: Buffer.from(shrunk).toString('base64'), mediaType: 'image/jpeg' })
   })
 
   it('readMany skips a screenshot whose file is gone', () => {

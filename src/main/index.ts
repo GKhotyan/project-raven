@@ -68,6 +68,7 @@ import { registerSystemAudioHandlers } from './systemAudioNative'
 import { databaseService, type Session, type Mode } from './services/database'
 import { createScreenshotStore, getScreenshotStore, setScreenshotStore } from './services/screenshotStore'
 import { createScreenshotHandlers } from './screenshotIpc'
+import { fitScreenshot } from './services/screenshotFit'
 import { sessionManager } from './services/sessionManager'
 import { ensureActiveMode, createDefaultMode, migrateGeneralAssistantPromptV21 } from './services/builtinModes'
 import { initializeVendorFeatures, shutdownVendorFeatures } from './services/vendorFeatures'
@@ -431,6 +432,7 @@ app.whenReady().then(() => {
     rootDir: join(app.getPath('userData'), 'data', 'screenshots'),
     getList: (id) => databaseService.getSessionScreenshots(id),
     setList: (id, list) => databaseService.setSessionScreenshots(id, list),
+    prepare: fitScreenshot,
   }))
   ensureActiveMode()
   // One-time content migration: upgrade pre-v2.1 General Assistant mode
