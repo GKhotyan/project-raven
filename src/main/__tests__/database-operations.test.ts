@@ -185,8 +185,8 @@ describe('DatabaseService', () => {
 
       // The migrate() method calls exec() for the migrations table creation
       expect(mockExec).toHaveBeenCalled()
-      // transaction() should be called once per unapplied migration (22 total)
-      expect(mockTransactionFn).toHaveBeenCalledTimes(22)
+      // transaction() should be called once per unapplied migration (23 total)
+      expect(mockTransactionFn).toHaveBeenCalledTimes(23)
     })
 
     it('skips migrations already applied', () => {
@@ -213,6 +213,7 @@ describe('DatabaseService', () => {
         { name: '020_add_chunk_embedding_model' },
         { name: '021_add_session_summary_model' },
         { name: '022_add_mode_title_from_mode' },
+        { name: '023_add_session_screenshots' },
       ])
 
       databaseService.initialize()
@@ -228,8 +229,8 @@ describe('DatabaseService', () => {
 
       databaseService.initialize()
 
-      // 20 unapplied migrations remain (003 through 022)
-      expect(mockTransactionFn).toHaveBeenCalledTimes(20)
+      // 21 unapplied migrations remain (003 through 023)
+      expect(mockTransactionFn).toHaveBeenCalledTimes(21)
     })
 
     it('is idempotent - second call is a no-op', () => {
@@ -1759,6 +1760,52 @@ describe('DatabaseService', () => {
 
     it('deleteContextFile throws', () => {
       expect(() => databaseService.deleteContextFile('x')).toThrow('Database not initialized')
+    })
+  })
+
+  describe('session screenshots', () => {
+    beforeEach(() => {
+      mockAll.mockReturnValue([
+        { name: '001_create_sessions' },
+        { name: '002_create_modes' },
+        { name: '003_add_notes_template' },
+        { name: '004_add_session_summary' },
+        { name: '005_add_session_messages' },
+        { name: '006_add_context_chunks' },
+        { name: '007_add_session_insights' },
+        { name: '008_add_session_updated_at' },
+        { name: '009_add_session_messages_created_at_index' },
+        { name: '010_add_mode_tombstones' },
+        { name: '011_add_session_tombstones' },
+        { name: '023_add_session_screenshots' },
+      ])
+      databaseService.initialize()
+      resetMocks()
+    })
+
+    it('returns the parsed screenshot list', () => {
+      const list = [{ id: 's1', timestamp: 5, file: 's1.png', mediaType: 'image/png' }]
+      mockGet.mockReturnValue({ screenshots_json: JSON.stringify(list) })
+
+      expect(databaseService.getSessionScreenshots('sess-1')).toEqual(list)
+    })
+
+    it('returns [] for a missing row, NULL or corrupted JSON', () => {
+      mockGet.mockReturnValueOnce(undefined)
+      expect(databaseService.getSessionScreenshots('sess-1')).toEqual([])
+      mockGet.mockReturnValueOnce({ screenshots_json: null })
+      expect(databaseService.getSessionScreenshots('sess-1')).toEqual([])
+      mockGet.mockReturnValueOnce({ screenshots_json: '{not json' })
+      expect(databaseService.getSessionScreenshots('sess-1')).toEqual([])
+    })
+
+    it('writes the list as JSON and bumps updated_at', () => {
+      const list = [{ id: 's1', timestamp: 5, file: 's1.png', mediaType: 'image/png' as const }]
+      databaseService.setSessionScreenshots('sess-1', list)
+
+      const sql = mockPrepare.mock.calls.map((c) => c[0] as string).find((q) => q.includes('screenshots_json = ?'))
+      expect(sql).toContain('UPDATE sessions')
+      expect(mockRun).toHaveBeenCalledWith(JSON.stringify(list), expect.any(Number), 'sess-1')
     })
   })
 })

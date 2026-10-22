@@ -10,6 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import { up as migration005 } from './migrations/005_add_session_messages';
 import { createLogger } from '../logger';
+import type { SessionScreenshot } from '../../shared/screenshots';
 
 const log = createLogger('Database');
 
@@ -90,6 +91,7 @@ export interface SessionRow {
   follow_up_email: string | null;
   segments_json: string | null;
   assist_memory_json: string | null;
+  screenshots_json?: string | null;
   summary_model?: string | null;
   mode_id: string | null;
   duration_seconds: number;
@@ -564,6 +566,14 @@ class DatabaseService {
           ALTER TABLE modes ADD COLUMN title_from_mode INTEGER NOT NULL DEFAULT 0;
         `,
       },
+      {
+        // User-pasted screenshots: [{ id, timestamp, file, mediaType }].
+        // Files live under <userData>/data/screenshots/<sessionId>/.
+        name: '023_add_session_screenshots',
+        sql: `
+          ALTER TABLE sessions ADD COLUMN screenshots_json TEXT DEFAULT NULL;
+        `,
+      },
     ];
 
     // Capture `this.db` to a local after the !null guard above so the
@@ -823,6 +833,28 @@ class DatabaseService {
 
     log.debug('Deleted session:', id, 'changes:', changes, '+ tombstone');
     return changes > 0;
+  }
+
+  getSessionScreenshots(sessionId: string): SessionScreenshot[] {
+    if (!this.db) throw new Error('Database not initialized');
+    const row = this.db
+      .prepare('SELECT screenshots_json FROM sessions WHERE id = ?')
+      .get(sessionId) as { screenshots_json: string | null } | undefined;
+    if (!row?.screenshots_json) return [];
+    try {
+      const parsed = JSON.parse(row.screenshots_json) as unknown;
+      return Array.isArray(parsed) ? (parsed as SessionScreenshot[]) : [];
+    } catch (err) {
+      log.warn('Corrupted screenshots JSON for session', sessionId, err);
+      return [];
+    }
+  }
+
+  setSessionScreenshots(sessionId: string, list: SessionScreenshot[]): void {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db
+      .prepare('UPDATE sessions SET screenshots_json = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify(list), Date.now(), sessionId);
   }
 
   /** See hasModeTombstone. Same contract, for sessions. */
