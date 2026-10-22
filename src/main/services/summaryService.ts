@@ -76,6 +76,7 @@ export function parseSessionNotesResponse(text: string): SummaryResult {
 export async function generateSessionSummary(
   transcript: string,
   modeId: string | null,
+  images: Array<{ base64: string; mediaType: string }> = [],
 ): Promise<SummaryResult> {
   if (!transcript || transcript.trim().length < SUMMARY_MIN_TRANSCRIPT_LENGTH) {
     return { title: PLACEHOLDER_SESSION_TITLE, summary: '' }
@@ -96,6 +97,7 @@ export async function generateSessionSummary(
     slice: SUMMARY_TRANSCRIPT_SLICE,
     modeName,
     notesSections,
+    screenshotCount: images.length,
   })
 
   try {
@@ -103,7 +105,11 @@ export async function generateSessionSummary(
 
     // maxTokens is a product hint; the provider uses the model max so
     // thinking-capable notes models can still emit a title and summary.
-    const text = await provider.generateShort({ prompt, maxTokens: SUMMARY_MAX_TOKENS })
+    const text = await provider.generateShort({
+      prompt,
+      maxTokens: SUMMARY_MAX_TOKENS,
+      ...(images.length > 0 ? { images } : {}),
+    })
     if (!text.trim()) {
       throw new Error('Notes model returned no text')
     }

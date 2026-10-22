@@ -37,6 +37,15 @@ describe('notesTemplateSections', () => {
 })
 
 describe('buildSessionSummaryPrompt', () => {
+  it('explains the screenshot markers only when screenshots are attached', () => {
+    const withShots = buildSessionSummaryPrompt({ transcript: 'Alice: hi\n[Screenshot 1 · 00:05]', slice: 8000, screenshotCount: 1 })
+    expect(withShots).toContain('[Screenshot N · mm:ss]')
+    expect(withShots).toContain('1 screenshot')
+
+    const without = buildSessionSummaryPrompt({ transcript: 'Alice: hi', slice: 8000 })
+    expect(without).not.toContain('[Screenshot N · mm:ss]')
+  })
+
   it('grounds notes in the YouTube-demo transcript instead of inventing an AI/ML meeting', () => {
     const prompt = buildSessionSummaryPrompt({
       transcript: YOUTUBE_DEMO_TRANSCRIPT,

@@ -59,6 +59,17 @@ vi.mock('uuid', () => ({
 }));
 
 // Import after mocks are set up
+const { mockScreenshotStore } = vi.hoisted(() => ({
+  mockScreenshotStore: {
+    list: vi.fn(() => [] as unknown[]),
+    readMany: vi.fn(() => [] as unknown[]),
+  },
+}));
+
+vi.mock('../services/screenshotStore', () => ({
+  getScreenshotStore: () => mockScreenshotStore,
+}));
+
 import { sessionManager } from '../services/sessionManager';
 import { generateSessionSummary } from '../services/summaryService';
 import { analyzeSession } from '../services/insightsService';
@@ -616,6 +627,20 @@ describe('SessionManager', () => {
   });
 
   describe('generateAndStoreNotes (on demand)', () => {
+    it('builds notes from a transcript with screenshot markers and passes the images', async () => {
+      const session = notesSession();
+      mockDatabaseService.getSession.mockReturnValue(session);
+      const shot = { id: 'shot1', timestamp: session.transcript[0].timestamp + 1, file: 'shot1.png', mediaType: 'image/png' };
+      mockScreenshotStore.list.mockReturnValueOnce([shot]);
+      mockScreenshotStore.readMany.mockReturnValueOnce([{ shot, base64: 'AAAA' }]);
+
+      await sessionManager.generateAndStoreNotes('test-uuid-1234');
+
+      const [text, , images] = vi.mocked(generateSessionSummary).mock.calls[0];
+      expect(text).toContain('[Screenshot 1 ·');
+      expect(images).toEqual([{ base64: 'AAAA', mediaType: 'image/png' }]);
+    });
+
     it('generates and stores title + summary', async () => {
       mockDatabaseService.getSession.mockReturnValue(notesSession());
 

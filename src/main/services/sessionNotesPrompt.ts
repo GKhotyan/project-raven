@@ -50,6 +50,7 @@ export function buildSessionSummaryPrompt(opts: {
   slice: number
   modeName?: string | null
   notesSections?: NotesTemplateSection[]
+  screenshotCount?: number
 }): string {
   const sections = (opts.notesSections ?? []).filter((section) => section.title)
   const modeLine = opts.modeName
@@ -62,8 +63,12 @@ export function buildSessionSummaryPrompt(opts: {
         )
         .join('\n')}`
     : ''
+  const count = opts.screenshotCount ?? 0
+  const screenshotsBlock = count > 0
+    ? `\n\nSCREENSHOTS: ${count} screenshot${count === 1 ? ' is' : 's are'} attached in the order of the [Screenshot N · mm:ss] markers in the transcript. The user pasted them during the call on purpose; what they show was on screen at that moment and counts as a fact of the session. Use them, but do not invent anything they do not show.`
+    : ''
 
-  return `Write a title and notes for this transcript.${modeLine}${sectionsBlock}
+  return `Write a title and notes for this transcript.${modeLine}${sectionsBlock}${screenshotsBlock}
 
 The transcript may be a meeting, a casual chat, a live demo, or audio from a video playing on the call. Treat it as speech, not as a brief you must complete.
 

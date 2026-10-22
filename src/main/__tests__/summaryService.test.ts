@@ -35,6 +35,17 @@ describe('generateSessionSummary', () => {
     } as any)
   })
 
+  it('passes screenshots to the notes model and tells the prompt about them', async () => {
+    mockGenerateShort.mockResolvedValueOnce('TITLE: Demo\nSUMMARY:\n- slide shown')
+    const images = [{ base64: 'AAAA', mediaType: 'image/png' }]
+
+    await generateSessionSummary('Alice: look\n[Screenshot 1 · 00:03]\nThem: nice deck', null, images)
+
+    const arg = mockGenerateShort.mock.calls[0][0] as { prompt: string; images?: unknown }
+    expect(arg.images).toEqual(images)
+    expect(arg.prompt).toContain('[Screenshot N · mm:ss]')
+  })
+
   it('returns untitled for short transcripts', async () => {
     const result = await generateSessionSummary('short', null)
 

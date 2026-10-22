@@ -9,6 +9,8 @@ import { parseSessionSegments, type SessionSegment } from '../../shared/sessionS
 import { BrowserWindow } from 'electron';
 import { generateSessionTitle } from '../claudeService';
 import { generateSessionSummary } from './summaryService';
+import { getScreenshotStore } from './screenshotStore';
+import { buildTimeline } from '../../shared/screenshots';
 import { indexSession } from './sessionIndexService';
 import { getSetting } from '../store';
 import { createLogger } from '../logger';
@@ -509,14 +511,6 @@ class SessionManager {
     return job;
   }
 
-  private formatTranscript(transcript: TranscriptEntry[]): string {
-    const displayName = getSetting('displayName') || 'You';
-    return transcript
-      .filter((e) => e.isFinal)
-      .map((e) => `${e.source === 'mic' ? displayName : 'Them'}: ${e.text}`)
-      .join('\n');
-  }
-
   private sendDashboard(channel: string, ...args: unknown[]): void {
     this.dashboardWindow?.webContents?.send(channel, ...args);
   }
@@ -526,7 +520,17 @@ class SessionManager {
     try {
       const session = databaseService.getSession(sessionId);
       if (!session?.transcript?.length) return false;
-      const transcriptText = this.formatTranscript(session.transcript);
+      const store = getScreenshotStore();
+      const timeline = buildTimeline({
+        entries: session.transcript,
+        screenshots: store.list(sessionId),
+        startedAt: session.startedAt,
+        displayName: getSetting('displayName') || 'You',
+      });
+      const transcriptText = timeline.text;
+      const images = store
+        .readMany(sessionId, timeline.ordered)
+        .map((r) => ({ base64: r.base64, mediaType: r.shot.mediaType }));
       const modeId = session.modeId;
       const fallbackTitle = session.title || PLACEHOLDER_SESSION_TITLE;
       // Keep a title the user has been living with (or edited).
@@ -534,7 +538,7 @@ class SessionManager {
 
       if (!transcriptText.trim()) return false;
 
-      const result = await generateSessionSummary(transcriptText, modeId);
+      const result = await generateSessionSummary(transcriptText, modeId, images);
 
       let notesOk = false;
       if (result.summary?.trim()) {
