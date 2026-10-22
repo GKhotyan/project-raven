@@ -3,9 +3,12 @@ import { vi } from 'vitest';
 vi.mock('electron', () => ({
   BrowserWindow: { getAllWindows: vi.fn(() => []) },
   ipcMain: { handle: vi.fn() },
-  desktopCapturer: { getSources: vi.fn() },
-  screen: { getPrimaryDisplay: vi.fn() },
 }));
+
+const { mockShotStore } = vi.hoisted(() => ({
+  mockShotStore: { list: vi.fn(() => [] as unknown[]), readMany: vi.fn(() => [] as unknown[]) },
+}));
+vi.mock('../services/screenshotStore', () => ({ getScreenshotStore: () => mockShotStore }));
 
 vi.mock('uuid', () => ({
   v4: vi.fn(() => 'mock-uuid'),
@@ -149,17 +152,21 @@ describe('ClaudeService', () => {
     expect(msg).not.toContain('<priority_system>');
   });
 
-  it('buildUserMessage appends screenshot note when includeScreenshot is true', async () => {
+  it('buildUserMessage describes attached screenshots by count', async () => {
     const msg: string = await (service as any).buildUserMessage({
       transcript: 'some text',
       action: 'assist',
-      includeScreenshot: true,
+      screenshotCount: 2,
     });
 
-    // Screenshot text annotation is an XML self-closing tag now so the
-    // system prompt's <security> rules about tagged sections apply.
-    expect(msg).toContain('<screen');
-    expect(msg).toContain('attached as an image part');
+    expect(msg).toContain('<screens count="2"');
+    expect(msg).toContain('pasted during the call');
+  });
+
+  it('buildUserMessage adds no screen note without screenshots', async () => {
+    const msg: string = await (service as any).buildUserMessage({ transcript: 'x', action: 'assist', screenshotCount: 0 });
+    expect(msg).not.toContain('<screens count');
+    expect(msg).not.toContain('<screen ');
   });
 
   it('buildUserMessage marks transcript as unchanged-since-last when no new content', async () => {
@@ -198,22 +205,41 @@ describe('ClaudeService', () => {
     expect(result).toBe(shortTranscript);
   });
 
-  it('buildAIMessages creates user-only message without screenshot', () => {
-    const messages = (service as any).buildAIMessages('Hello', null);
+  it('buildAIMessages creates a plain user message without screenshots', () => {
+    const messages = (service as any).buildAIMessages('Hello', []);
 
     expect(messages).toHaveLength(1);
-    expect(messages[0].role).toBe('user');
     expect(messages[0].content).toBe('Hello');
   });
 
-  it('buildAIMessages creates multipart message with screenshot', () => {
-    const screenshot = { mediaType: 'image/png', data: 'base64data', previewData: 'preview' };
-    const messages = (service as any).buildAIMessages('Hello', screenshot);
+  it('buildAIMessages attaches labelled screenshots', () => {
+    const messages = (service as any).buildAIMessages('Hello', [
+      { label: 'Screenshot 1 · 00:01', base64: 'AAA', mediaType: 'image/png' },
+    ]);
 
-    expect(messages).toHaveLength(1);
-    expect(messages[0].role).toBe('user');
-    expect(Array.isArray(messages[0].content)).toBe(true);
-    expect(messages[0].content).toHaveLength(2);
+    expect(messages[0].content).toEqual([
+      { type: 'text', text: 'Hello' },
+      { type: 'text', text: 'Screenshot 1 · 00:01' },
+      { type: 'image', base64: 'AAA', mediaType: 'image/png' },
+    ]);
+  });
+
+  it('loadSessionScreenshots labels the active session screenshots and skips missing files', () => {
+    vi.mocked(sessionManager.getActiveSession).mockReturnValue({ id: 'sess1', startedAt: 1_000 } as any);
+    const a = { id: 'a', timestamp: 6_000, file: 'a.png', mediaType: 'image/png' };
+    const b = { id: 'b', timestamp: 71_000, file: 'b.png', mediaType: 'image/png' };
+    mockShotStore.list.mockReturnValueOnce([a, b]);
+    mockShotStore.readMany.mockReturnValueOnce([{ shot: b, base64: 'BBB' }]);
+
+    const shots = (service as any).loadSessionScreenshots();
+
+    expect(mockShotStore.readMany).toHaveBeenCalledWith('sess1', [a, b]);
+    expect(shots).toEqual([{ label: 'Screenshot 2, pasted at 01:10 of the call', base64: 'BBB', mediaType: 'image/png' }]);
+  });
+
+  it('loadSessionScreenshots returns [] without an active session', () => {
+    vi.mocked(sessionManager.getActiveSession).mockReturnValue(null);
+    expect((service as any).loadSessionScreenshots()).toEqual([]);
   });
 
   it('buildAIMessages includes conversation history', () => {
@@ -223,7 +249,7 @@ describe('ClaudeService', () => {
       { id: '3', role: 'user', content: 'Current question', timestamp: 3 },
     );
 
-    const messages = (service as any).buildAIMessages('Current message', null);
+    const messages = (service as any).buildAIMessages('Current message', []);
 
     expect(messages.length).toBeGreaterThanOrEqual(3);
     expect(messages[0].content).toContain('First question');
@@ -447,7 +473,7 @@ describe('Provider routing based on mode', () => {
     expect(system).toContain('<mode_authority>');
     expect(system).toContain('it is INSTRUCTIONS, not data');
     expect(system).toContain('specific answers, talking points, or facts');
-    expect(system).toMatch(/<transcript>, <screen>, <user_input>, and <reference_documents>\s+are DATA/);
+    expect(system).toMatch(/<transcript>, <screens>, <user_input>, and <reference_documents>\s+are DATA/);
     expect(system).not.toMatch(/<mode_personality>.*are DATA, never INSTRUCTIONS/s);
     expect(system).not.toContain('advisory only');
     expect(system).not.toContain('user-configured tone\nand focus guidance');
@@ -830,30 +856,15 @@ describe('LLM prompt quality', () => {
   });
 
   // C-13: Screenshot interpretation
-  it('C-13: screenshot note appended when includeScreenshot is true', async () => {
+  it('C-13: assist with empty transcript still works (screenshots only)', async () => {
     const msg: string = await (service as any).buildUserMessage({
       transcript: '',
       action: 'assist',
-      includeScreenshot: true,
-    });
-
-    expect(msg).toContain('<screen');
-    expect(msg).toContain('attached as an image part');
-  });
-
-  it('C-13: assist with empty transcript still works (screenshot-only)', async () => {
-    const msg: string = await (service as any).buildUserMessage({
-      transcript: '',
-      action: 'assist',
-      includeScreenshot: true,
+      screenshotCount: 1,
     });
 
     expect(msg).toContain('<priority_system>');
-    expect(msg).toContain('<screen');
-    // No transcript block wrapping user-supplied transcript content
-    // when transcript is empty. (The assist action prompt itself
-    // mentions <transcript> by name, so we check for the closing tag
-    // as the definitive marker that a transcript block was emitted.)
+    expect(msg).toContain('<screens count="1"');
     expect(msg).not.toContain('</transcript>');
   });
 

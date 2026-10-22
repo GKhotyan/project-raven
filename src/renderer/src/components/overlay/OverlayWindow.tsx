@@ -251,8 +251,8 @@ export function OverlayWindow() {
               data.userMessage?.action === 'custom' && Boolean(data.userMessage?.content?.trim())
                 ? 'custom'
                 : 'quick',
-            hasScreenshot: Boolean(data.requestMeta?.includeScreenshot),
-            screenshotPreviewData: data.requestMeta?.screenshotPreviewData
+            hasScreenshot: (data.requestMeta?.screenshotCount ?? 0) > 0,
+            screenshotPreviewData: undefined
           }
         ])
       } else if (data.type === 'delta') {
@@ -710,7 +710,6 @@ export function OverlayWindow() {
         customPrompt: opts.customPrompt,
         modePrompt: activeMode?.systemPrompt,
         modeId: activeMode?.id,
-        includeScreenshot: opts.includeScreenshot,
       })
     } catch (error) {
       clearAiStartWatchdog()

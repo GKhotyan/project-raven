@@ -117,14 +117,6 @@ export const DEEPGRAM_UTTERANCE_END_MS = 1500
 export const TRANSCRIPT_MERGE_WINDOW_MS = 5000
 export const TRANSCRIPT_FLUSH_TIMEOUT_MS = 3000
 
-// ── Screenshot ───────────────────────────────────────────────────────
-
-export const SCREENSHOT_CAPTURE_DELAY_MS = 45
-export const SCREENSHOT_MAX_WIDTH = 1920
-export const SCREENSHOT_MIN_WIDTH = 640
-export const SCREENSHOT_MIN_HEIGHT = 360
-export const SCREENSHOT_PREVIEW_WIDTH = 320
-
 // ── Session / Auto-save ──────────────────────────────────────────────
 
 export const SESSION_AUTOSAVE_INTERVAL_MS = 60_000

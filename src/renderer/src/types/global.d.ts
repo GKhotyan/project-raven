@@ -288,7 +288,6 @@ declare global {
         customPrompt?: string;
         modePrompt?: string;
         modeId?: string;
-        includeScreenshot?: boolean;
       }) => Promise<{ ignored?: boolean } | void>;
       claudeGetHistory: () => Promise<{ id: string; role: 'user' | 'assistant'; content: string; action?: string; timestamp: number }[]>;
       claudeClearHistory: () => Promise<{ success: boolean }>;
@@ -301,7 +300,7 @@ declare global {
         fullText?: string;
         error?: string;
         limitInfo?: { used: number; limit: number; resetAt: string };
-        requestMeta?: { includeScreenshot: boolean; screenshotPreviewData?: string };
+        requestMeta?: { screenshotCount: number };
         /** Earlier sitting's answers, sent with type 'restored' when a session is resumed. */
         restoredResponses?: Array<{ id: string; action: string; userMessage: string; response: string; timestamp: number }>;
       }) => void) => () => void;

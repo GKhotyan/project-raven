@@ -144,6 +144,24 @@ describe('replay window', () => {
     expect(cut).toContain('truncated')
   })
 
+  it('attaches every screenshot after the current message, each with its label', () => {
+    const messages = buildReplayMessages({
+      history: [],
+      currentUserMessage: 'Help',
+      screenshots: [
+        { label: 'Screenshot 1 · 00:05', base64: 'AAA', mediaType: 'image/png' },
+        { label: 'Screenshot 2 · 01:10', base64: 'BBB', mediaType: 'image/jpeg' },
+      ],
+    })
+    expect(messages[messages.length - 1].content).toEqual([
+      { type: 'text', text: 'Help' },
+      { type: 'text', text: 'Screenshot 1 · 00:05' },
+      { type: 'image', base64: 'AAA', mediaType: 'image/png' },
+      { type: 'text', text: 'Screenshot 2 · 01:10' },
+      { type: 'image', base64: 'BBB', mediaType: 'image/jpeg' },
+    ])
+  })
+
   it('replays user digest + truncated assistant + current turn', () => {
     const messages = buildReplayMessages({
       history: [
@@ -152,7 +170,7 @@ describe('replay window', () => {
         { role: 'user', content: 'Assist', digest: 'Assist: follow up' },
       ],
       currentUserMessage: 'current',
-      screenshot: null,
+      screenshots: [],
     })
     expect(messages).toHaveLength(3)
     expect(messages[0].content).toContain('two sum')

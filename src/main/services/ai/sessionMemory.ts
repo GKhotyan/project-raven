@@ -269,7 +269,7 @@ export function selectRecentTurns<T>(messages: T[], limit = RECENT_HISTORY_MESSA
 export function buildReplayMessages(params: {
   history: Array<{ role: 'user' | 'assistant'; content: string; digest?: string }>;
   currentUserMessage: string;
-  screenshot: { data: string; mediaType: 'image/png' } | null;
+  screenshots: Array<{ label: string; base64: string; mediaType: string }>;
 }): AIMessage[] {
   const recent = selectRecentTurns(params.history);
   const messages: AIMessage[] = [];
@@ -285,12 +285,15 @@ export function buildReplayMessages(params: {
     });
   }
 
-  if (params.screenshot) {
+  if (params.screenshots.length > 0) {
     messages.push({
       role: 'user',
       content: [
         { type: 'text', text: params.currentUserMessage },
-        { type: 'image', base64: params.screenshot.data, mediaType: params.screenshot.mediaType },
+        ...params.screenshots.flatMap((s) => [
+          { type: 'text' as const, text: s.label },
+          { type: 'image' as const, base64: s.base64, mediaType: s.mediaType },
+        ]),
       ],
     });
   } else {

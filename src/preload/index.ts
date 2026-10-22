@@ -307,7 +307,6 @@ contextBridge.exposeInMainWorld('raven', {
     customPrompt?: string;
     modePrompt?: string;
     modeId?: string;
-    includeScreenshot?: boolean;
   }) =>
     ipcRenderer.invoke('claude:get-response', params),
   claudeGetHistory: () => ipcRenderer.invoke('claude:get-history'),
@@ -321,7 +320,7 @@ contextBridge.exposeInMainWorld('raven', {
     fullText?: string
     error?: string
     limitInfo?: { used: number; limit: number; resetAt: string }
-    requestMeta?: { includeScreenshot: boolean; screenshotPreviewData?: string }
+    requestMeta?: { screenshotCount: number }
   }) => void) => {
     const handler = (_: unknown, data: unknown) => callback(data as {
       type: 'start' | 'delta' | 'done' | 'error' | 'cleared'
@@ -332,7 +331,7 @@ contextBridge.exposeInMainWorld('raven', {
       fullText?: string
       error?: string
       limitInfo?: { used: number; limit: number; resetAt: string }
-      requestMeta?: { includeScreenshot: boolean; screenshotPreviewData?: string }
+      requestMeta?: { screenshotCount: number }
     })
     ipcRenderer.on('claude:response', handler)
     return () => { ipcRenderer.removeListener('claude:response', handler) }
