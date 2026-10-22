@@ -42,6 +42,8 @@ export interface AIProvider {
     system?: string;
     prompt: string;
     maxTokens?: number;
+    /** Attached after the prompt, in order. Text-only models get a note instead. */
+    images?: Array<{ base64: string; mediaType: string }>;
   }): Promise<string>;
 }
 

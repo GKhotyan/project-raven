@@ -71,13 +71,18 @@ export class AnthropicProvider implements AIProvider {
     system?: string;
     prompt: string;
     maxTokens?: number;
+    images?: Array<{ base64: string; mediaType: string }>;
   }): Promise<string> {
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const client = new Anthropic({ apiKey: this.apiKey });
 
-    const messages: Array<{ role: 'user'; content: string }> = [
-      { role: 'user', content: params.prompt },
-    ];
+    const content: string | AIContentPart[] = params.images?.length
+      ? [
+          { type: 'text', text: params.prompt },
+          ...params.images.map((img) => ({ type: 'image' as const, base64: img.base64, mediaType: img.mediaType })),
+        ]
+      : params.prompt;
+    const messages = [{ role: 'user' as const, content: this.convertContent(content) }];
 
     // Anthropic rejects non-streaming messages.create when max_tokens is
     // large enough that the call may exceed 10 minutes (Sonnet 5 at 128k

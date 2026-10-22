@@ -63,6 +63,18 @@ describe('OpenAIProvider', () => {
   })
 
   describe('generateShort', () => {
+    it('sends images after the prompt as image_url parts', async () => {
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'ok' } }] })
+
+      await provider.generateShort({ prompt: 'Summarize', images: [{ base64: 'AAAA', mediaType: 'image/jpeg' }] })
+
+      const payload = mockCreate.mock.calls[mockCreate.mock.calls.length - 1][0] as { messages: Array<{ content: unknown }> }
+      expect(payload.messages[0].content).toEqual([
+        { type: 'text', text: 'Summarize' },
+        { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAAA' } },
+      ])
+    })
+
     it('returns trimmed text from API response', async () => {
       mockCreate.mockResolvedValueOnce({
         choices: [{ message: { content: '  Generated text  ' } }],

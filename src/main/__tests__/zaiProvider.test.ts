@@ -19,6 +19,16 @@ const callbacks = () => ({ onText: vi.fn(), onDone: vi.fn(), onError: vi.fn() })
 const PNG = { type: 'image' as const, base64: 'iVBORw0KGgo=', mediaType: 'image/png' }
 
 describe('ZaiProvider', () => {
+  it('replaces generateShort images with a note on text-only GLM', async () => {
+    const provider = new ZaiProvider('k', 'glm-5.3')
+    mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'ok' } }] })
+
+    await provider.generateShort({ prompt: 'Summarize', images: [{ base64: 'AAAA', mediaType: 'image/png' }] })
+
+    const payload = mockCreate.mock.calls[0][0] as { messages: Array<{ content: unknown }> }
+    expect(payload.messages[0].content).toBe('Summarize\n[Screenshot omitted: this model cannot read images.]')
+  })
+
   beforeEach(() => {
     mockCreate.mockReset()
     mockCtor.mockReset()

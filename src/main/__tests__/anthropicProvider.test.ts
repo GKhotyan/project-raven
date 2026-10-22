@@ -42,6 +42,18 @@ describe('AnthropicProvider', () => {
   })
 
   describe('generateShort', () => {
+    it('sends images after the prompt as base64 image blocks', async () => {
+      mockTextStream(['ok'])
+
+      await provider.generateShort({ prompt: 'Summarize', images: [{ base64: 'AAAA', mediaType: 'image/png' }] })
+
+      const call = mockStream.mock.calls[mockStream.mock.calls.length - 1][0] as { messages: Array<{ content: unknown }> }
+      expect(call.messages[0].content).toEqual([
+        { type: 'text', text: 'Summarize' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+      ])
+    })
+
     it('returns trimmed streamed text and does not use non-streaming create', async () => {
       mockTextStream(['  Hello', ' World  '])
 

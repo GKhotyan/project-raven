@@ -88,14 +88,21 @@ export class OpenAIProvider implements AIProvider {
     system?: string;
     prompt: string;
     maxTokens?: number;
+    images?: Array<{ base64: string; mediaType: string }>;
   }): Promise<string> {
     const client = await this.createClient();
 
-    const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
+    const messages: Array<{ role: 'system' | 'user'; content: ReturnType<OpenAIProvider['convertContent']> }> = [];
     if (params.system) {
       messages.push({ role: 'system', content: params.system });
     }
-    messages.push({ role: 'user', content: params.prompt });
+    const content: string | AIContentPart[] = params.images?.length
+      ? [
+          { type: 'text', text: params.prompt },
+          ...params.images.map((img) => ({ type: 'image' as const, base64: img.base64, mediaType: img.mediaType })),
+        ]
+      : params.prompt;
+    messages.push({ role: 'user', content: this.convertContent(content) });
 
     const response = await client.chat.completions.create({
       model: this.model,
