@@ -15,11 +15,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Wand2, MessageSquareText, RotateCcw, ChevronRight } from 'lucide-react'
 import { ControllerPill } from './ControllerPill'
 import { TranscriptTab } from './TranscriptTab'
+import { ScreenshotStrip } from './ScreenshotStrip'
 import { OverlayNotification, type NotificationData } from './OverlayNotification'
 import { useOverlayResize } from './useOverlayResize'
 import { useOverlayDrag } from './useOverlayDrag'
 import { useMousePassthrough } from './useMousePassthrough'
 import { createLogger } from '../../lib/logger'
+import { fileBytes, imageFromItems } from '../../lib/clipboardImages'
 import { detectMacPlatform, modifierLabel } from '../../lib/shortcutLabels'
 import {
   EMPTY_OVERLAY_INSETS,
@@ -39,8 +41,7 @@ interface ResponseCard {
   content: string
   action: string
   badgeVariant: 'quick' | 'custom' | 'system'
-  hasScreenshot: boolean
-  screenshotPreviewData?: string
+  screenshotCount: number
 }
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
@@ -149,7 +150,6 @@ export function OverlayWindow() {
   const [isLoadingResponse, setIsLoadingResponse] = useState(false)
   const [activeResponseId, setActiveResponseId] = useState<string | null>(null)
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
-  const [previewMessageId, setPreviewMessageId] = useState<string | null>(null)
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [hoveredResponseId, setHoveredResponseId] = useState<string | null>(null)
@@ -251,8 +251,7 @@ export function OverlayWindow() {
               data.userMessage?.action === 'custom' && Boolean(data.userMessage?.content?.trim())
                 ? 'custom'
                 : 'quick',
-            hasScreenshot: (data.requestMeta?.screenshotCount ?? 0) > 0,
-            screenshotPreviewData: undefined
+            screenshotCount: data.requestMeta?.screenshotCount ?? 0
           }
         ])
       } else if (data.type === 'delta') {
@@ -297,7 +296,7 @@ export function OverlayWindow() {
               content: data.error || 'Something went wrong',
               action: 'Error',
               badgeVariant: 'system',
-              hasScreenshot: false
+              screenshotCount: 0
             }
           ])
         }
@@ -311,7 +310,6 @@ export function OverlayWindow() {
         setActiveResponseId(null)
         activeResponseIdRef.current = null
         setHoveredMessageId(null)
-        setPreviewMessageId(null)
       } else if (data.type === 'restored') {
         // A saved session was resumed: replace whatever is on screen with
         // the earlier sitting's answers so the user can scroll back to them.
@@ -322,7 +320,6 @@ export function OverlayWindow() {
         setActiveResponseId(null)
         activeResponseIdRef.current = null
         setHoveredMessageId(null)
-        setPreviewMessageId(null)
         setResponses(
           (data.restoredResponses ?? []).map((r) => {
             // Sessions saved before userMessage existed on AI responses
@@ -334,7 +331,7 @@ export function OverlayWindow() {
               content: r.response ?? '',
               action: isCustom ? asked : getActionLabel(r.action),
               badgeVariant: isCustom ? 'custom' : 'quick',
-              hasScreenshot: false,
+              screenshotCount: 0,
             }
           }),
         )
@@ -682,16 +679,48 @@ export function OverlayWindow() {
           content: 'Raven did not start a reply. Check the AI API key in Settings, then try again.',
           action: 'Error',
           badgeVariant: 'system',
-          hasScreenshot: false,
+          screenshotCount: 0,
         },
       ])
     }, AI_START_WATCHDOG_MS)
   }, [clearAiStartWatchdog])
 
+  const [screenshotError, setScreenshotError] = useState<string | null>(null)
+
+  const addScreenshotFile = useCallback(async (file: File) => {
+    setScreenshotError(null)
+    const res = await window.raven.screenshots.add(await fileBytes(file))
+    if (!res.ok) setScreenshotError(res.error)
+  }, [])
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const file = imageFromItems(Array.from(e.clipboardData?.items ?? []))
+      if (!file) return // plain text: let the input handle it
+      e.preventDefault()
+      void addScreenshotFile(file)
+    }
+    // Without preventDefault on dragover/drop Electron navigates the overlay to the dropped file.
+    const onDragOver = (e: DragEvent) => { e.preventDefault() }
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault()
+      const file = imageFromItems(Array.from(e.dataTransfer?.items ?? []))
+      if (file) void addScreenshotFile(file)
+      else if (e.dataTransfer?.files.length) setScreenshotError('Only PNG and JPEG images can be added.')
+    }
+    window.addEventListener('paste', onPaste)
+    window.addEventListener('dragover', onDragOver)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('paste', onPaste)
+      window.removeEventListener('dragover', onDragOver)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [addScreenshotFile])
+
   const beginAiRequest = useCallback(async (opts: {
     action: string
     customPrompt?: string
-    includeScreenshot: boolean
   }) => {
     if (requestInFlightRef.current) return
     requestInFlightRef.current = true
@@ -723,18 +752,18 @@ export function OverlayWindow() {
           content: error instanceof Error ? error.message : 'Could not reach Raven. Try again.',
           action: 'Error',
           badgeVariant: 'system',
-          hasScreenshot: false,
+          screenshotCount: 0,
         },
       ])
     }
   }, [armAiStartWatchdog, clearAiStartWatchdog])
 
   const handleAssist = async () => {
-    await beginAiRequest({ action: 'assist', includeScreenshot: true })
+    await beginAiRequest({ action: 'assist' })
   }
 
   const handleQuickAction = async (action: string) => {
-    await beginAiRequest({ action, includeScreenshot: false })
+    await beginAiRequest({ action })
   }
 
   const handleSend = async () => {
@@ -746,7 +775,6 @@ export function OverlayWindow() {
     await beginAiRequest({
       action: 'custom',
       customPrompt: trimmed,
-      includeScreenshot: true,
     })
   }
 
@@ -1092,7 +1120,7 @@ export function OverlayWindow() {
                     transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                   >
                     <div
-                      className={`flex ${entry.badgeVariant === 'system' ? 'justify-start' : 'justify-end'} ${entry.hasScreenshot ? 'mb-1' : 'mb-3'}`}
+                      className={`flex ${entry.badgeVariant === 'system' ? 'justify-start' : 'justify-end'} ${entry.screenshotCount > 0 ? 'mb-1' : 'mb-3'}`}
                       onMouseEnter={() => setHoveredMessageId(entry.id)}
                       onMouseLeave={() => {
                         setHoveredMessageId((current) => (current === entry.id ? null : current))
@@ -1142,35 +1170,11 @@ export function OverlayWindow() {
                         </span>
                       </div>
                     </div>
-                    {entry.hasScreenshot && (
-                      <div className="relative flex justify-end mb-3">
-                        <span
-                          className="text-[11px] font-medium text-white/40 inline-flex items-center gap-1"
-                          onMouseEnter={() => setPreviewMessageId(entry.id)}
-                          onMouseLeave={() => {
-                            setPreviewMessageId((current) => (current === entry.id ? null : current))
-                          }}
-                        >
-                          Sent with screenshot
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" className="text-white/35">
-                            <path d="M20 5h-3.2l-1.1-1.4A2 2 0 0 0 14.1 3H9.9a2 2 0 0 0-1.6.8L7.2 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm-8 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z" />
-                          </svg>
+                    {entry.screenshotCount > 0 && (
+                      <div className="flex justify-end mb-3">
+                        <span className="text-[11px] font-medium text-white/40">
+                          Sent with {entry.screenshotCount} screenshot{entry.screenshotCount === 1 ? '' : 's'}
                         </span>
-                        {previewMessageId === entry.id && entry.screenshotPreviewData && (
-                          <div
-                            className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-white/15 bg-[#1f222b] p-1.5 shadow-2xl shadow-black/45 z-30"
-                            onMouseEnter={() => setPreviewMessageId(entry.id)}
-                            onMouseLeave={() => {
-                              setPreviewMessageId((current) => (current === entry.id ? null : current))
-                            }}
-                          >
-                            <img
-                              src={entry.screenshotPreviewData}
-                              alt="Screenshot preview"
-                              className="w-full h-auto rounded-lg object-cover"
-                            />
-                          </div>
-                        )}
                       </div>
                     )}
 
@@ -1348,6 +1352,10 @@ export function OverlayWindow() {
             </div>
           )}
 
+          <ScreenshotStrip isRecording={isRecording} />
+          {screenshotError && (
+            <p className="px-4 pt-1 text-[11px] text-red-300/90">{screenshotError}</p>
+          )}
           {/* Input Area */}
           <div className={`mt-auto px-4 py-1 ${isRecording || hasResponse ? 'border-t border-white/15' : ''}`}>
             {/* Input Row */}
@@ -1387,7 +1395,7 @@ export function OverlayWindow() {
                 {/* Custom placeholder with key caps */}
                 {!inputValue && (
                   <span className="absolute top-0 left-0 right-0 h-full text-[13px] pointer-events-none text-white/60 flex items-center gap-1">
-                    Ask about your screen or conversation, or
+                    Ask about the conversation (paste screenshots with ⌘V), or
                     <span className="flex items-center gap-1">
                       <span
                         className="inline-flex justify-center items-center shrink-0 text-white/50 rounded-md px-1"
