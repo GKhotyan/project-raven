@@ -3,6 +3,7 @@ import {
   EMPTY_OVERLAY_INSETS,
   overlayPanelTop,
   placeOverlayPanel,
+  resizeOverlayPanel,
 } from '../overlayPanelLayout'
 
 describe('placeOverlayPanel', () => {
@@ -113,5 +114,66 @@ describe('placeOverlayPanel', () => {
       previousHeight: 216,
     })
     expect(placed).toEqual({ right: 100, bottom: 100, height: 216, width: 480 })
+  })
+})
+
+describe('resizeOverlayPanel', () => {
+  const base = {
+    viewportWidth: 1920,
+    viewportHeight: 1080,
+    insets: EMPTY_OVERLAY_INSETS,
+    minWidth: 380,
+    minHeight: 300,
+    start: { width: 500, height: 500, right: 400, bottom: 200 },
+  }
+  const left = (r: { width: number; right: number }) => 1920 - r.right - r.width
+
+  it('keeps the left edge when dragging the right edge', () => {
+    const r = resizeOverlayPanel({ ...base, edge: 'e', dx: 60, dy: 30 })
+    expect(r).toMatchObject({ width: 560, height: 500, bottom: 200 })
+    expect(left(r)).toBe(left(base.start))
+  })
+
+  it('keeps the right edge when dragging the left edge', () => {
+    const r = resizeOverlayPanel({ ...base, edge: 'w', dx: -60, dy: 0 })
+    expect(r).toMatchObject({ width: 560, right: 400 })
+  })
+
+  it('keeps the top edge when dragging the bottom edge', () => {
+    const r = resizeOverlayPanel({ ...base, edge: 's', dx: 0, dy: 50 })
+    expect(r).toMatchObject({ height: 550, bottom: 150, width: 500 })
+  })
+
+  it('keeps the bottom edge when dragging the top edge', () => {
+    const r = resizeOverlayPanel({ ...base, edge: 'n', dx: 0, dy: -50 })
+    expect(r).toMatchObject({ height: 550, bottom: 200 })
+  })
+
+  it('resizes both axes from a corner', () => {
+    const r = resizeOverlayPanel({ ...base, edge: 'nw', dx: -20, dy: -40 })
+    expect(r).toMatchObject({ width: 520, height: 540, right: 400, bottom: 200 })
+  })
+
+  it('lets the panel shrink down to the minimum, not below', () => {
+    const r = resizeOverlayPanel({ ...base, edge: 'se', dx: -400, dy: -400 })
+    expect(r).toMatchObject({ width: 380, height: 300 })
+    expect(left(r)).toBe(left(base.start))
+  })
+
+  it('stops the top edge at the screen top instead of pushing the panel down', () => {
+    const r = resizeOverlayPanel({ ...base, edge: 'n', dx: 0, dy: -2000 })
+    expect(r.bottom).toBe(200)
+    expect(overlayPanelTop(1080, r.bottom, r.height)).toBe(20)
+  })
+
+  it('stops the left edge at the screen edge instead of pushing the panel right', () => {
+    const r = resizeOverlayPanel({ ...base, edge: 'w', dx: -5000, dy: 0 })
+    expect(r.right).toBe(400)
+    expect(left(r)).toBe(20)
+  })
+
+  it('ignores vertical movement when height is locked', () => {
+    const r = resizeOverlayPanel({ ...base, edge: 'se', dx: 10, dy: 80, lockHeight: true })
+    expect(r).toMatchObject({ width: 510, height: 500, bottom: 200 })
   })
 })

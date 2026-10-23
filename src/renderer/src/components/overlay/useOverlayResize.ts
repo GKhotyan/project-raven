@@ -1,15 +1,31 @@
 import { useState, useCallback, useRef, type MouseEvent as ReactMouseEvent } from 'react'
-import { EMPTY_OVERLAY_INSETS, placeOverlayPanel, type OverlayInsets } from '../../lib/overlayPanelLayout'
+import {
+  EMPTY_OVERLAY_INSETS,
+  placeOverlayPanel,
+  resizeOverlayPanel,
+  type OverlayInsets,
+  type OverlayResizeEdge,
+} from '../../lib/overlayPanelLayout'
 
-export type ResizeEdge = 'left' | 'right' | 'bottom'
+export type ResizeEdge = OverlayResizeEdge
 
-const OVERLAY_MIN_WIDTH = 480
-const OVERLAY_DEFAULT_WIDTH = 480
-const OVERLAY_COMPACT_MIN_HEIGHT = 210
-const OVERLAY_DEFAULT_COMPACT_HEIGHT = 216
-const OVERLAY_EXPANDED_MIN_HEIGHT = 350
-const OVERLAY_DEFAULT_EXPANDED_HEIGHT = 500
+const OVERLAY_MIN_WIDTH = 380
+const OVERLAY_DEFAULT_WIDTH = 448
+const OVERLAY_DEFAULT_COMPACT_HEIGHT = 140
+const OVERLAY_EXPANDED_MIN_HEIGHT = 260
+const OVERLAY_DEFAULT_EXPANDED_HEIGHT = 460
 const PANEL_EDGE_MARGIN = 20
+
+const EDGE_CURSORS: Record<ResizeEdge, string> = {
+  n: 'ns-resize',
+  s: 'ns-resize',
+  e: 'ew-resize',
+  w: 'ew-resize',
+  ne: 'nesw-resize',
+  sw: 'nesw-resize',
+  nw: 'nwse-resize',
+  se: 'nwse-resize',
+}
 
 export function useOverlayResize(insets: OverlayInsets = EMPTY_OVERLAY_INSETS) {
   const [panelWidth, setPanelWidth] = useState(OVERLAY_DEFAULT_WIDTH)
@@ -19,8 +35,9 @@ export function useOverlayResize(insets: OverlayInsets = EMPTY_OVERLAY_INSETS) {
   const [panelRight, setPanelRight] = useState(() =>
     Math.max(PANEL_EDGE_MARGIN, Math.round((window.innerWidth - OVERLAY_DEFAULT_WIDTH) / 2))
   )
-  const [panelHeight, setPanelHeight] = useState<number | undefined>(undefined)
-  const [hoveredResizeEdge, setHoveredResizeEdge] = useState<ResizeEdge | null>(null)
+  // Height of the expanded card (body visible). The idle and collapsed cards
+  // size to their content, so this is remembered across collapse / expand.
+  const [panelHeight, setPanelHeight] = useState(OVERLAY_DEFAULT_EXPANDED_HEIGHT)
   const [activeResizeEdge, setActiveResizeEdge] = useState<ResizeEdge | null>(null)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
@@ -29,58 +46,38 @@ export function useOverlayResize(insets: OverlayInsets = EMPTY_OVERLAY_INSETS) {
     e: ReactMouseEvent<HTMLDivElement>,
     isPanelExpanded: boolean,
   ) => {
+    if (e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
 
     resizeCleanupRef.current?.()
 
-    const startWidth = panelWidth
-    const startRight = panelRight
-    const startBottom = panelBottom
-    const startHeight = panelHeight ?? (isPanelExpanded ? OVERLAY_DEFAULT_EXPANDED_HEIGHT : OVERLAY_DEFAULT_COMPACT_HEIGHT)
+    const start = { width: panelWidth, height: panelHeight, right: panelRight, bottom: panelBottom }
     const startScreenX = e.screenX
     const startScreenY = e.screenY
     const originalCursor = document.body.style.cursor
     const originalUserSelect = document.body.style.userSelect
-    document.body.style.cursor = edge === 'bottom' ? 'ns-resize' : 'ew-resize'
+    document.body.style.cursor = EDGE_CURSORS[edge]
     document.body.style.userSelect = 'none'
     setActiveResizeEdge(edge)
 
     const onMouseMove = (moveEvent: MouseEvent) => {
-      const dx = moveEvent.screenX - startScreenX
-      const dy = moveEvent.screenY - startScreenY
-      let width = startWidth
-      let right = startRight
-      let height = startHeight
-      let bottom = startBottom
-
-      if (edge === 'left') {
-        width = Math.max(startWidth - dx, OVERLAY_MIN_WIDTH)
-      } else if (edge === 'right') {
-        width = Math.max(startWidth + dx, OVERLAY_MIN_WIDTH)
-        right = startRight - (width - startWidth)
-      } else {
-        const minH = isPanelExpanded ? OVERLAY_EXPANDED_MIN_HEIGHT : OVERLAY_COMPACT_MIN_HEIGHT
-        height = Math.max(startHeight + dy, minH)
-        bottom = startBottom - (height - startHeight)
-      }
-
-      const placed = placeOverlayPanel({
+      const next = resizeOverlayPanel({
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
         insets,
-        width,
-        height,
-        right,
-        bottom,
-        previousHeight: height,
+        minWidth: OVERLAY_MIN_WIDTH,
+        minHeight: OVERLAY_EXPANDED_MIN_HEIGHT,
+        start,
+        edge,
+        dx: moveEvent.screenX - startScreenX,
+        dy: moveEvent.screenY - startScreenY,
+        lockHeight: !isPanelExpanded,
       })
-      setPanelWidth(placed.width)
-      setPanelRight(placed.right)
-      setPanelBottom(placed.bottom)
-      if (isPanelExpanded || edge === 'bottom') {
-        setPanelHeight(placed.height)
-      }
+      setPanelWidth(next.width)
+      setPanelRight(next.right)
+      setPanelBottom(next.bottom)
+      setPanelHeight(next.height)
     }
 
     const cleanup = () => {
@@ -112,7 +109,7 @@ export function useOverlayResize(insets: OverlayInsets = EMPTY_OVERLAY_INSETS) {
       previousHeight: h,
     })
     setPanelWidth(placed.width)
-    setPanelHeight(isPanelExpanded ? placed.height : undefined)
+    setPanelHeight(isPanelExpanded ? placed.height : OVERLAY_DEFAULT_EXPANDED_HEIGHT)
     setPanelRight(placed.right)
     setPanelBottom(placed.bottom)
   }, [insets])
@@ -124,11 +121,11 @@ export function useOverlayResize(insets: OverlayInsets = EMPTY_OVERLAY_INSETS) {
   return {
     panelWidth, panelRight, panelBottom, panelHeight,
     setPanelWidth, setPanelRight, setPanelBottom, setPanelHeight,
-    hoveredResizeEdge, setHoveredResizeEdge,
     activeResizeEdge,
     handleResizeStart,
     handleResizeDoubleClick,
     cleanupResize,
+    EDGE_CURSORS,
     OVERLAY_DEFAULT_COMPACT_HEIGHT,
     OVERLAY_DEFAULT_EXPANDED_HEIGHT,
     OVERLAY_MIN_WIDTH,

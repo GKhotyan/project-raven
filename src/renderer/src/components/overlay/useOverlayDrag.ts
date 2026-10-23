@@ -5,8 +5,8 @@ interface UseOverlayDragOptions {
   panelRight: number
   panelBottom: number
   panelWidth: number
-  panelHeight: number | undefined
-  defaultCompactHeight: number
+  /** Rendered card height; the idle / collapsed card sizes to its content. */
+  getPanelHeight: () => number
   insets: OverlayInsets
   setPanelRight: (v: number) => void
   setPanelBottom: (v: number) => void
@@ -25,7 +25,8 @@ export function useOverlayDrag(options: UseOverlayDragOptions) {
     window.raven.windowShowDashboard?.()
   }, [])
 
-  const handleLogoMouseDown = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+  // Starts a move from the logo or any empty part of the title bar.
+  const handleDragMouseDown = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     if (event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
@@ -37,7 +38,7 @@ export function useOverlayDrag(options: UseOverlayDragOptions) {
     const startRight = options.panelRight
     const startBottom = options.panelBottom
     const currentW = options.panelWidth
-    const currentH = options.panelHeight ?? options.defaultCompactHeight
+    const currentH = options.getPanelHeight()
     const startX = event.screenX
     const startY = event.screenY
     const originalCursor = document.body.style.cursor
@@ -84,12 +85,12 @@ export function useOverlayDrag(options: UseOverlayDragOptions) {
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp, { once: true })
     // `options` itself is intentionally omitted: we list each concrete
-    // field used by the callback (panelRight/Bottom/Width/Height plus the
+    // field used by the callback (panelRight/Bottom/Width, the height getter and the
     // setters) so a new `options` object literal on every render doesn't
     // re-create the callback unnecessarily. Warning would recommend
     // depending on `options` wholesale, which defeats the purpose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options.panelRight, options.panelBottom, options.panelWidth, options.panelHeight, options.insets, options.setOverlayMouseIgnore, options.defaultCompactHeight, options.setPanelRight, options.setPanelBottom])
+  }, [options.panelRight, options.panelBottom, options.panelWidth, options.getPanelHeight, options.insets, options.setOverlayMouseIgnore, options.setPanelRight, options.setPanelBottom])
 
   const cleanupDrag = useCallback(() => {
     logoDragCleanupRef.current?.()
@@ -97,7 +98,7 @@ export function useOverlayDrag(options: UseOverlayDragOptions) {
 
   return {
     handleLogoClick,
-    handleLogoMouseDown,
+    handleDragMouseDown,
     cleanupDrag,
   }
 }

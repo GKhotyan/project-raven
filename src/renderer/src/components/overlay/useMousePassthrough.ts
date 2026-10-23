@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
 
 interface HitTestRefs {
-  pillWrapperRef: RefObject<HTMLDivElement | null>
-  panelWrapperRef: RefObject<HTMLDivElement | null>
-  leftRailRef: RefObject<HTMLDivElement | null>
-  rightRailRef: RefObject<HTMLDivElement | null>
-  bottomRailRef: RefObject<HTMLDivElement | null>
+  // The card itself, title bar and resize edges included (the edges sit
+  // inside its border, so one rect covers them all).
+  panelRef: RefObject<HTMLDivElement | null>
   // Notifications render outside the main panel (top-right). Without this
   // entry, the overlay's window-level setIgnoreMouseEvents(true) stays on
   // while the cursor is over a notification, so clicks (including the X
@@ -32,14 +30,10 @@ export function useMousePassthrough(refs: HitTestRefs) {
       return rect ? isInside(rect, x, y) : false
     }
     return (
-      check(refs.pillWrapperRef) ||
-      check(refs.panelWrapperRef) ||
-      check(refs.leftRailRef) ||
-      check(refs.rightRailRef) ||
-      check(refs.bottomRailRef) ||
+      check(refs.panelRef) ||
       check(refs.notificationRef)
     )
-  }, [isInside, refs.pillWrapperRef, refs.panelWrapperRef, refs.leftRailRef, refs.rightRailRef, refs.bottomRailRef, refs.notificationRef])
+  }, [isInside, refs.panelRef, refs.notificationRef])
 
   useEffect(() => {
     setOverlayMouseIgnore(true)
