@@ -4,18 +4,33 @@ import { createHash } from 'crypto';
 import { hostname, userInfo } from 'os';
 import { existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
+import { openEncryptedConfig } from './configStore';
+import { createLogger } from './logger';
 import { PROVIDER_API_KEY_FIELD, parseAIProviderName, type AIProviderName } from '../shared/aiSlots';
 
+const log = createLogger('Store');
+
+function deriveKey(machineId: string): string {
+  return createHash('sha256').update(machineId).digest('hex').slice(0, 32);
+}
+
 function getEncryptionKey(): string {
-  // Derive a deterministic per-machine key from OS-level identifiers.
-  // This is obfuscation (not true security) since the derivation is deterministic,
-  // but it prevents trivial decryption by someone who just reads the source code.
-  // We intentionally avoid safeStorage here because:
+  // Derive a deterministic per-user key. This is obfuscation (not true
+  // security) since the derivation is deterministic, but it prevents trivial
+  // decryption by someone who just reads the source code. API keys inside
+  // are additionally encrypted with safeStorage (see encryptValue).
+  // We intentionally avoid safeStorage for the file key because:
   //   - safeStorage.encryptString() is non-deterministic (random IV each call)
   //   - It changes across Electron major versions, breaking existing configs
   //   - It triggers macOS Keychain permission prompts on upgrade
-  const machineId = `${hostname()}-${userInfo().username}-raven-v1`;
-  return createHash('sha256').update(machineId).digest('hex').slice(0, 32);
+  // The hostname is left out: macOS renames the host on a Bonjour name
+  // conflict (MacBook-Pro -> MacBook-Pro-2), which made the config unreadable.
+  return deriveKey(`${userInfo().username}-raven-v2`);
+}
+
+/** Key used before v2. Only works while the hostname is unchanged. */
+function getLegacyEncryptionKey(): string {
+  return deriveKey(`${hostname()}-${userInfo().username}-raven-v1`);
 }
 
 export interface LocalSettings {
@@ -135,31 +150,22 @@ const STORE_DEFAULTS: LocalSettings = {
 };
 
 function createStore(): Store<LocalSettings> {
-  const encryptionKey = getEncryptionKey();
-  try {
-    const s = new Store<LocalSettings>({
-      name: 'raven-config',
-      defaults: STORE_DEFAULTS,
-      encryptionKey,
-    });
-    // Verify we can read (triggers decryption)
-    s.get('mode');
-    return s;
-  } catch {
-    // Decryption failed (e.g. encryption key changed).
-    // Delete the corrupted config file and start fresh.
-    try {
-      const configPath = join(app.getPath('userData'), 'raven-config.json');
-      if (existsSync(configPath)) unlinkSync(configPath);
-    } catch {
-      // ignore - file may not exist or be locked
-    }
-    return new Store<LocalSettings>({
-      name: 'raven-config',
-      defaults: STORE_DEFAULTS,
-      encryptionKey,
-    });
-  }
+  return openEncryptedConfig({
+    filePath: join(app.getPath('userData'), 'raven-config.json'),
+    key: getEncryptionKey(),
+    legacyKeys: [getLegacyEncryptionKey()],
+    open: (encryptionKey) => {
+      const s = new Store<LocalSettings>({
+        name: 'raven-config',
+        defaults: STORE_DEFAULTS,
+        encryptionKey,
+      });
+      // Verify we can read (triggers decryption)
+      s.get('mode');
+      return s;
+    },
+    log,
+  });
 }
 
 const store = createStore();
