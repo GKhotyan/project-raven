@@ -105,6 +105,10 @@ export const CONVERSATION_HISTORY_LIMIT = 100
 // appears beyond the cap.
 export const TRANSCRIPT_LINE_LIMIT = 300
 
+// Assist sends only this many of the newest pasted screenshots as images;
+// older ones go as their background text description once it exists.
+export const ASSIST_IMAGE_SCREENSHOTS = 2
+
 // ── Audio / Transcription ────────────────────────────────────────────
 
 export const AUDIO_SAMPLE_RATE = 16000

@@ -521,7 +521,18 @@ app.whenReady().then(() => {
     })
     safeHandle('screenshots:add', (bytes: unknown) => {
       const res = shots.add(bytes)
-      if (res.ok) BrowserWindow.getAllWindows().forEach((win) => win.webContents.send('screenshots:changed', res.value.sessionId))
+      if (res.ok) {
+        BrowserWindow.getAllWindows().forEach((win) => win.webContents.send('screenshots:changed', res.value.sessionId))
+        // Background: lets Assist send this screenshot as text once it is no longer among the newest.
+        void Promise.all([import('./services/screenshotDescriber'), import('./services/ai/providerFactory')])
+          .then(([{ describeScreenshot }, { getScreenshotDescriberProvider }]) => describeScreenshot({
+            store: getScreenshotStore(),
+            getProvider: getScreenshotDescriberProvider,
+            sessionId: res.value.sessionId,
+            shotId: res.value.id,
+          }))
+          .catch(() => {})
+      }
       return res
     })
     safeHandle('screenshots:list', (sessionId?: unknown) => shots.list(sessionId))

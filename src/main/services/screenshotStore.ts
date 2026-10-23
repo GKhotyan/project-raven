@@ -20,6 +20,8 @@ export interface ScreenshotStore {
   read(sessionId: string, id: string): { base64: string; mediaType: ScreenshotMediaType } | null;
   readMany(sessionId: string, shots: SessionScreenshot[]): Array<{ shot: SessionScreenshot; base64: string }>;
   remove(sessionId: string, id: string): void;
+  /** Store the background description; a no-op if the screenshot is gone. */
+  setDescription(sessionId: string, id: string, description: string): void;
   removeAll(sessionId: string): void;
 }
 
@@ -111,6 +113,13 @@ export function createScreenshotStore(deps: {
       if (!found) return;
       if (existsSync(found.path)) unlinkSync(found.path);
       deps.setList(sessionId, deps.getList(sessionId).filter((s) => s.id !== id));
+    },
+
+    setDescription(sessionId, id, description) {
+      if (!SAFE_ID.test(sessionId)) return;
+      const list = deps.getList(sessionId);
+      if (!list.some((s) => s.id === id)) return;
+      deps.setList(sessionId, list.map((s) => (s.id === id ? { ...s, description } : s)));
     },
 
     removeAll(sessionId) {

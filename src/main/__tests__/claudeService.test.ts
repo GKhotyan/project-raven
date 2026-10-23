@@ -156,15 +156,32 @@ describe('ClaudeService', () => {
     const msg: string = await (service as any).buildUserMessage({
       transcript: 'some text',
       action: 'assist',
-      screenshotCount: 2,
+      screens: { total: 2, images: [{}, {}], described: [] },
     });
 
     expect(msg).toContain('<screens count="2"');
     expect(msg).toContain('pasted during the call');
+    expect(msg).toContain('[Screenshot N · mm:ss] markers');
+  });
+
+  it('buildUserMessage gives older screenshots as their text descriptions', async () => {
+    const msg: string = await (service as any).buildUserMessage({
+      transcript: 'some text',
+      action: 'assist',
+      screens: {
+        total: 3,
+        images: [{}, {}],
+        described: [{ label: '[Screenshot 1 · 00:05]', description: 'Error: Invalid token' }],
+      },
+    });
+
+    expect(msg).toContain('<screens count="3"');
+    expect(msg).toContain('[Screenshot 1 · 00:05] (text description):\nError: Invalid token');
+    expect(msg).toContain('</screens>');
   });
 
   it('buildUserMessage adds no screen note without screenshots', async () => {
-    const msg: string = await (service as any).buildUserMessage({ transcript: 'x', action: 'assist', screenshotCount: 0 });
+    const msg: string = await (service as any).buildUserMessage({ transcript: 'x', action: 'assist', screens: { total: 0, images: [], described: [] } });
     expect(msg).not.toContain('<screens count');
     expect(msg).not.toContain('<screen ');
   });
@@ -234,12 +251,50 @@ describe('ClaudeService', () => {
     const shots = (service as any).loadSessionScreenshots();
 
     expect(mockShotStore.readMany).toHaveBeenCalledWith('sess1', [a, b]);
-    expect(shots).toEqual([{ label: 'Screenshot 2, pasted at 01:10 of the call', base64: 'BBB', mediaType: 'image/png' }]);
+    expect(shots).toEqual({
+      total: 2,
+      images: [{ label: '[Screenshot 2 · 01:10]', base64: 'BBB', mediaType: 'image/png' }],
+      described: [],
+    });
   });
 
-  it('loadSessionScreenshots returns [] without an active session', () => {
+  it('loadSessionScreenshots sends only the newest as images and older described ones as text', () => {
+    vi.mocked(sessionManager.getActiveSession).mockReturnValue({ id: 'sess1', startedAt: 1_000 } as any);
+    const shot = (id: string, at: number, description?: string) =>
+      ({ id, timestamp: at, file: `${id}.png`, mediaType: 'image/png', ...(description ? { description } : {}) });
+    const a = shot('a', 6_000, 'Login form');
+    const b = shot('b', 11_000, 'Chart');
+    const c = shot('c', 16_000, 'Code');
+    mockShotStore.list.mockReturnValueOnce([a, b, c]);
+    mockShotStore.readMany.mockReturnValueOnce([{ shot: b, base64: 'BBB' }, { shot: c, base64: 'CCC' }]);
+
+    const shots = (service as any).loadSessionScreenshots();
+
+    expect(mockShotStore.readMany).toHaveBeenCalledWith('sess1', [b, c]);
+    expect(shots.total).toBe(3);
+    expect(shots.images.map((i: { label: string }) => i.label)).toEqual(['[Screenshot 2 · 00:10]', '[Screenshot 3 · 00:15]']);
+    expect(shots.described).toEqual([{ label: '[Screenshot 1 · 00:05]', description: 'Login form' }]);
+  });
+
+  it('loadSessionScreenshots returns nothing without an active session', () => {
     vi.mocked(sessionManager.getActiveSession).mockReturnValue(null);
-    expect((service as any).loadSessionScreenshots()).toEqual([]);
+    expect((service as any).loadSessionScreenshots()).toEqual({ total: 0, images: [], described: [] });
+  });
+
+  it('markTranscriptWithScreenshots inserts markers from the active session', () => {
+    vi.mocked(sessionManager.getActiveSession).mockReturnValue({
+      id: 'sess1',
+      startedAt: 1_000,
+      transcript: [
+        { source: 'mic', text: 'Look', timestamp: 2_000, isFinal: true },
+        { source: 'system', text: 'I see', timestamp: 9_000, isFinal: true },
+      ],
+    } as any);
+    mockShotStore.list.mockReturnValueOnce([{ id: 'a', timestamp: 6_000, file: 'a.png', mediaType: 'image/png' }]);
+
+    const out = (service as any).markTranscriptWithScreenshots('Alice: Look\nThem: I see');
+
+    expect(out).toBe('Alice: Look\n[Screenshot 1 · 00:05]\nThem: I see');
   });
 
   it('buildAIMessages includes conversation history', () => {
@@ -860,7 +915,7 @@ describe('LLM prompt quality', () => {
     const msg: string = await (service as any).buildUserMessage({
       transcript: '',
       action: 'assist',
-      screenshotCount: 1,
+      screens: { total: 1, images: [{}], described: [] },
     });
 
     expect(msg).toContain('<priority_system>');

@@ -13,6 +13,8 @@ export interface SessionScreenshot {
   /** file name inside the session's screenshot folder */
   file: string
   mediaType: ScreenshotMediaType
+  /** Text description written in the background after the paste, for Assist. */
+  description?: string
 }
 
 export const MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024
@@ -88,9 +90,70 @@ export function buildTimeline(params: {
   return { text: lines.join('\n'), ordered }
 }
 
+/**
+ * The live Assist transcript with the same `[Screenshot N · mm:ss]` markers
+ * the notes get. `transcript` is the final lines followed by any
+ * "(still speaking)" lines; if its final part doesn't match `entries`
+ * exactly, the transcript is returned unchanged rather than mis-marked.
+ */
+export function markTranscriptWithScreenshots(params: {
+  transcript: string
+  entries: TimelineEntry[]
+  screenshots: SessionScreenshot[]
+  startedAt: number
+  displayName: string
+}): string {
+  if (params.screenshots.length === 0) return params.transcript
+  const plain = buildTimeline({ ...params, screenshots: [] }).text
+  if (!plain || !params.transcript.startsWith(plain)) return params.transcript
+  const marked = buildTimeline(params).text
+  return marked + params.transcript.slice(plain.length)
+}
+
+export interface AssistScreenshotPlan {
+  /** 1-based, in paste order; matches the transcript markers. */
+  number: number
+  shot: SessionScreenshot
+  /** false: send `shot.description` as text instead of the image. */
+  asImage: boolean
+}
+
+/**
+ * Hybrid for Assist: the newest `keepImages` screenshots go as images (they
+ * are what the user is most likely asking about); older ones go as their
+ * text description once it exists, which keeps each request light.
+ */
+export function splitAssistScreenshots(
+  screenshots: SessionScreenshot[],
+  keepImages: number,
+): AssistScreenshotPlan[] {
+  const sorted = [...screenshots].sort((a, b) => a.timestamp - b.timestamp)
+  const firstImage = sorted.length - keepImages
+  return sorted.map((shot, i) => ({
+    number: i + 1,
+    shot,
+    asImage: i >= firstImage || !shot.description?.trim(),
+  }))
+}
+
 const ZAI_VISION_MODELS = new Set(['glm-5v-turbo', 'glm-5.3-flash', 'glm-5.3-flashx'])
 
 /** Text-only GLM models answer 400 on image parts; every other catalog model reads images. */
 export function modelAcceptsImages(provider: 'anthropic' | 'openai' | 'zai', model: string): boolean {
   return provider === 'zai' ? ZAI_VISION_MODELS.has(model) : true
+}
+
+/**
+ * Which model writes the background screenshot descriptions: the cheap
+ * session-memory model when it reads images, else the Live assist model.
+ * null means neither can, and Assist keeps sending every screenshot as an image.
+ */
+export function pickScreenshotDescriber(params: {
+  provider: 'anthropic' | 'openai' | 'zai'
+  memoryModel: string
+  assistModel: string
+}): 'memory' | 'assist' | null {
+  if (modelAcceptsImages(params.provider, params.memoryModel)) return 'memory'
+  if (modelAcceptsImages(params.provider, params.assistModel)) return 'assist'
+  return null
 }

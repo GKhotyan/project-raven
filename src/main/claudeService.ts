@@ -26,10 +26,16 @@ import {
   type SessionMemory,
 } from './services/ai/sessionMemory';
 import { createLogger } from './logger';
-import { TITLE_MAX_TOKENS, TITLE_MAX_LENGTH, TITLE_TRUNCATE_AT, TITLE_TRUNCATED_LENGTH, AI_STREAM_TIMEOUT_MS, RAG_QUERY_TRANSCRIPT_SLICE, RAG_DEFAULT_TOP_K, CONVERSATION_HISTORY_LIMIT, TRANSCRIPT_LINE_LIMIT } from './constants';
-import { formatElapsed } from '../shared/screenshots';
+import { TITLE_MAX_TOKENS, TITLE_MAX_LENGTH, TITLE_TRUNCATE_AT, TITLE_TRUNCATED_LENGTH, AI_STREAM_TIMEOUT_MS, RAG_QUERY_TRANSCRIPT_SLICE, RAG_DEFAULT_TOP_K, CONVERSATION_HISTORY_LIMIT, TRANSCRIPT_LINE_LIMIT, ASSIST_IMAGE_SCREENSHOTS } from './constants';
+import { markTranscriptWithScreenshots, screenshotLabel, splitAssistScreenshots } from '../shared/screenshots';
 import { getScreenshotStore } from './services/screenshotStore';
 import { buildSessionTitlePrompt } from './services/sessionNotesPrompt';
+
+interface AssistScreens {
+  total: number;
+  images: Array<{ label: string; base64: string; mediaType: string }>;
+  described: Array<{ label: string; description: string }>;
+}
 
 const log = createLogger('Claude');
 
@@ -406,13 +412,16 @@ export class ClaudeService {
         const provider = await getProviderFromStore();
 
         const screenshots = this.loadSessionScreenshots();
+        // Same [Screenshot N · mm:ss] markers as the notes, so the model knows
+        // which part of the conversation each screenshot belongs to.
+        params = { ...params, transcript: this.markTranscriptWithScreenshots(params.transcript) };
 
         this.conversation.memory = pinOpeningIfNeeded(this.conversation.memory, params.transcript);
         if (params.action === 'custom' && params.customPrompt) {
           this.conversation.memory = pinUserQuestion(this.conversation.memory, params.customPrompt);
         }
 
-        const userMessageContent = await this.buildUserMessage({ ...params, screenshotCount: screenshots.length });
+        const userMessageContent = await this.buildUserMessage({ ...params, screens: screenshots });
         const assistantMessageId = this.generateId();
         const actionLabel = this.getActionLabel(params.action);
         const userMessage: ChatMessage = {
@@ -439,10 +448,10 @@ export class ClaudeService {
           type: 'start',
           messageId: assistantMessageId,
           userMessage,
-          requestMeta: { screenshotCount: screenshots.length },
+          requestMeta: { screenshotCount: screenshots.total },
         });
 
-        const aiMessages = this.buildAIMessages(userMessageContent, screenshots);
+        const aiMessages = this.buildAIMessages(userMessageContent, screenshots.images);
 
         let ragChunks: Array<{ chunkText: string; fileName: string; score: number }> = [];
         if (params.modeId) {
@@ -721,7 +730,7 @@ export class ClaudeService {
     transcript: string;
     action: string;
     customPrompt?: string;
-    screenshotCount?: number;
+    screens?: AssistScreens;
   }): Promise<string> {
     let message = '';
 
@@ -761,11 +770,22 @@ export class ClaudeService {
       message += actionPrompt || ACTION_PROMPTS[params.action] || ACTION_PROMPTS.assist;
     }
 
-    if (params.screenshotCount && params.screenshotCount > 0) {
-      // The images are separate content parts (buildAIMessages), each after
-      // its own "Screenshot N, pasted at mm:ss" label. The tag keeps the
-      // system prompt's DATA-not-instructions rule for screen content.
-      message += `\n\n<screens count="${params.screenshotCount}" note="Screenshots the user pasted during the call are attached as image parts of this message, oldest first" />`;
+    const screens = params.screens;
+    if (screens && screens.total > 0) {
+      // Images are separate content parts (buildAIMessages), each after its
+      // own "[Screenshot N · mm:ss]" label; older screenshots come as their
+      // text description here instead. The tag keeps the system prompt's
+      // DATA-not-instructions rule for screen content.
+      const note = 'Screenshots the user pasted during the call, matching the [Screenshot N · mm:ss] markers in the transcript. '
+        + (screens.described.length > 0
+          ? 'The newest are attached as image parts of this message; older ones are given below as text descriptions written when they were pasted'
+          : 'They are attached as image parts of this message, oldest first');
+      if (screens.described.length > 0) {
+        const items = screens.described.map((d) => `${d.label} (text description):\n${d.description}`).join('\n\n');
+        message += `\n\n<screens count="${screens.total}" note="${note}">\n${items}\n</screens>`;
+      } else {
+        message += `\n\n<screens count="${screens.total}" note="${note}" />`;
+      }
     }
 
     return message;
@@ -782,17 +802,40 @@ export class ClaudeService {
     });
   }
 
-  /** Every screenshot the user pasted into the active session, labelled for the model. */
-  private loadSessionScreenshots(): Array<{ label: string; base64: string; mediaType: string }> {
+  /**
+   * The active session's pasted screenshots, labelled like the transcript
+   * markers: the newest as images, older described ones as text.
+   */
+  private loadSessionScreenshots(): AssistScreens {
+    const none: AssistScreens = { total: 0, images: [], described: [] };
     const session = sessionManager.getActiveSession();
-    if (!session) return [];
+    if (!session) return none;
     const store = getScreenshotStore();
-    const all = store.list(session.id);
-    return store.readMany(session.id, all).map(({ shot, base64 }) => ({
-      label: `Screenshot ${all.indexOf(shot) + 1}, pasted at ${formatElapsed(shot.timestamp - session.startedAt)} of the call`,
-      base64,
-      mediaType: shot.mediaType,
-    }));
+    const plan = splitAssistScreenshots(store.list(session.id), ASSIST_IMAGE_SCREENSHOTS);
+    const label = (n: number, timestamp: number) => `[${screenshotLabel(n, timestamp, session.startedAt)}]`;
+
+    const imagePlans = plan.filter((p) => p.asImage);
+    const images = store.readMany(session.id, imagePlans.map((p) => p.shot)).map(({ shot, base64 }) => {
+      const n = imagePlans.find((p) => p.shot.id === shot.id)?.number ?? 0;
+      return { label: label(n, shot.timestamp), base64, mediaType: shot.mediaType };
+    });
+    const described = plan
+      .filter((p) => !p.asImage)
+      .map((p) => ({ label: label(p.number, p.shot.timestamp), description: (p.shot.description ?? '').trim() }));
+
+    return { total: plan.length, images, described };
+  }
+
+  private markTranscriptWithScreenshots(transcript: string): string {
+    const session = sessionManager.getActiveSession();
+    if (!session) return transcript;
+    return markTranscriptWithScreenshots({
+      transcript,
+      entries: session.transcript ?? [],
+      screenshots: getScreenshotStore().list(session.id),
+      startedAt: session.startedAt,
+      displayName: (getSetting('displayName') as string) || 'You',
+    });
   }
 
   private scheduleMemoryRefresh(): void {

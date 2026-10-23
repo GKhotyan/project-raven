@@ -110,4 +110,22 @@ describe('screenshotStore', () => {
     expect(out.map((r) => r.shot.id)).toEqual(['shot2'])
     expect(store.read('sess1', a.id)).toBeNull()
   })
+
+  it('setDescription adds the text to that screenshot only', () => {
+    const a = store.add('sess1', PNG)
+    const b = store.add('sess1', PNG)
+
+    store.setDescription('sess1', a.id, 'A bar chart of Q3 revenue')
+
+    expect(store.list('sess1')).toEqual([{ ...a, description: 'A bar chart of Q3 revenue' }, b])
+  })
+
+  it('setDescription does nothing for a screenshot removed in the meantime', () => {
+    const a = store.add('sess1', PNG)
+    store.remove('sess1', a.id)
+
+    store.setDescription('sess1', a.id, 'late description')
+
+    expect(store.list('sess1')).toEqual([])
+  })
 })

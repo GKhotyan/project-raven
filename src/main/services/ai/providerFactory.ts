@@ -4,6 +4,7 @@ import { AnthropicProvider } from './anthropicProvider';
 import { OpenAIProvider } from './openaiProvider';
 import { ZaiProvider } from './zaiProvider';
 import { createLogger } from '../../logger';
+import { pickScreenshotDescriber } from '../../../shared/screenshots';
 import {
   NOTES_FAST_MODELS,
   PROVIDER_API_KEY_FIELD,
@@ -104,6 +105,25 @@ export async function getMemoryProvider(): Promise<AIProvider> {
   const apiKey = requireApiKey(provider, getApiKey);
 
   return getProvider({ provider, model, apiKey, effort: DEFAULT_EFFORT });
+}
+
+/**
+ * Writes the background text descriptions of pasted screenshots. Prefers the
+ * session-memory model, falls back to the Live assist model, and returns null
+ * when neither reads images.
+ */
+export async function getScreenshotDescriberProvider(): Promise<AIProvider | null> {
+  const { getSetting } = await import('../../store');
+
+  const provider = resolveMemoryProvider(getSetting('aiProvider'));
+  const slot = pickScreenshotDescriber({
+    provider,
+    memoryModel: resolveMemoryModel(getSetting('aiProvider')),
+    assistModel: resolveCatalogModel(provider, getSetting('aiModel') as string),
+  });
+  if (slot === 'memory') return getMemoryProvider();
+  if (slot === 'assist') return getProviderFromStore();
+  return null;
 }
 
 /** @deprecated Use getMemoryProvider. Kept so older callers keep the cheap system model. */
