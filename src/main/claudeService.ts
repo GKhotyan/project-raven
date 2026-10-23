@@ -448,7 +448,7 @@ export class ClaudeService {
           type: 'start',
           messageId: assistantMessageId,
           userMessage,
-          requestMeta: { screenshotCount: screenshots.total },
+          requestMeta: { screenshotCount: screenshots.total, screenshotTextCount: screenshots.described.length },
         });
 
         const aiMessages = this.buildAIMessages(userMessageContent, screenshots.images);
@@ -920,7 +920,7 @@ export class ClaudeService {
     fullText?: string;
     error?: string;
     limitInfo?: { used: number; limit: number; resetAt: string };
-    requestMeta?: { screenshotCount: number };
+    requestMeta?: { screenshotCount: number; screenshotTextCount?: number };
     /** Earlier sitting's answers, replayed on resume (type 'restored'). */
     restoredResponses?: Array<{ id: string; action: string; userMessage: string; response: string; timestamp: number }>;
   }): void {

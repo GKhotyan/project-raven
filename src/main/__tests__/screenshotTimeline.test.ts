@@ -5,6 +5,7 @@ import {
   markTranscriptWithScreenshots,
   modelAcceptsImages,
   pickScreenshotDescriber,
+  sentScreenshotsLabel,
   placeScreenshots,
   screenshotLabel,
   splitAssistScreenshots,
@@ -179,5 +180,17 @@ describe('pickScreenshotDescriber', () => {
   it('gives up when neither model reads images', () => {
     expect(pickScreenshotDescriber({ provider: 'zai', memoryModel: 'glm-5.1', assistModel: 'glm-5.1' }))
       .toBeNull()
+  })
+})
+
+describe('sentScreenshotsLabel', () => {
+  it('counts screenshots sent only as images', () => {
+    expect(sentScreenshotsLabel(1, 0)).toBe('Sent with 1 screenshot')
+    expect(sentScreenshotsLabel(2, 0)).toBe('Sent with 2 screenshots')
+  })
+
+  it('shows how many went as text descriptions', () => {
+    expect(sentScreenshotsLabel(5, 3)).toBe('Sent with 5 screenshots · 2 as images, 3 as text')
+    expect(sentScreenshotsLabel(2, 1)).toBe('Sent with 2 screenshots · 1 as image, 1 as text')
   })
 })

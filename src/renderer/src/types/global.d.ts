@@ -316,7 +316,7 @@ declare global {
         fullText?: string;
         error?: string;
         limitInfo?: { used: number; limit: number; resetAt: string };
-        requestMeta?: { screenshotCount: number };
+        requestMeta?: { screenshotCount: number; screenshotTextCount?: number };
         /** Earlier sitting's answers, sent with type 'restored' when a session is resumed. */
         restoredResponses?: Array<{ id: string; action: string; userMessage: string; response: string; timestamp: number }>;
       }) => void) => () => void;

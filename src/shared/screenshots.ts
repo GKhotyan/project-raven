@@ -157,3 +157,11 @@ export function pickScreenshotDescriber(params: {
   if (modelAcceptsImages(params.provider, params.assistModel)) return 'assist'
   return null
 }
+
+/** Note under an Assist request: how many screenshots went, and how. */
+export function sentScreenshotsLabel(total: number, asText: number): string {
+  const base = `Sent with ${total} screenshot${total === 1 ? '' : 's'}`
+  if (asText <= 0) return base
+  const images = total - asText
+  return `${base} · ${images} as image${images === 1 ? '' : 's'}, ${asText} as text`
+}

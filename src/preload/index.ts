@@ -331,7 +331,7 @@ contextBridge.exposeInMainWorld('raven', {
     fullText?: string
     error?: string
     limitInfo?: { used: number; limit: number; resetAt: string }
-    requestMeta?: { screenshotCount: number }
+    requestMeta?: { screenshotCount: number; screenshotTextCount?: number }
   }) => void) => {
     const handler = (_: unknown, data: unknown) => callback(data as {
       type: 'start' | 'delta' | 'done' | 'error' | 'cleared'
@@ -342,7 +342,7 @@ contextBridge.exposeInMainWorld('raven', {
       fullText?: string
       error?: string
       limitInfo?: { used: number; limit: number; resetAt: string }
-      requestMeta?: { screenshotCount: number }
+      requestMeta?: { screenshotCount: number; screenshotTextCount?: number }
     })
     ipcRenderer.on('claude:response', handler)
     return () => { ipcRenderer.removeListener('claude:response', handler) }

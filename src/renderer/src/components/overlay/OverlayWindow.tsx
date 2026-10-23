@@ -24,6 +24,7 @@ import { useMousePassthrough } from './useMousePassthrough'
 import { createLogger } from '../../lib/logger'
 import { fileBytes, imageFromItems } from '../../lib/clipboardImages'
 import { detectMacPlatform, modifierLabel } from '../../lib/shortcutLabels'
+import { sentScreenshotsLabel } from '../../../../shared/screenshots'
 import {
   EMPTY_OVERLAY_INSETS,
   placeOverlayPanel,
@@ -43,6 +44,8 @@ interface ResponseCard {
   action: string
   badgeVariant: 'quick' | 'custom' | 'system'
   screenshotCount: number
+  /** Of those, sent as their text description instead of the image. */
+  screenshotTextCount?: number
 }
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
@@ -259,7 +262,8 @@ export function OverlayWindow() {
               data.userMessage?.action === 'custom' && Boolean(data.userMessage?.content?.trim())
                 ? 'custom'
                 : 'quick',
-            screenshotCount: data.requestMeta?.screenshotCount ?? 0
+            screenshotCount: data.requestMeta?.screenshotCount ?? 0,
+            screenshotTextCount: data.requestMeta?.screenshotTextCount ?? 0
           }
         ])
       } else if (data.type === 'delta') {
@@ -1081,7 +1085,7 @@ export function OverlayWindow() {
                   {entry.screenshotCount > 0 && (
                     <div className="flex justify-end mb-3">
                       <span className="text-[11px] font-medium text-white/40">
-                        Sent with {entry.screenshotCount} screenshot{entry.screenshotCount === 1 ? '' : 's'}
+                        {sentScreenshotsLabel(entry.screenshotCount, entry.screenshotTextCount ?? 0)}
                       </span>
                     </div>
                   )}
