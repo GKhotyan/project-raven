@@ -9,6 +9,8 @@ interface HitTestRefs {
   // while the cursor is over a notification, so clicks (including the X
   // dismiss button) pass through to whatever app is behind the overlay.
   notificationRef: RefObject<HTMLDivElement | null>
+  // Full-screen screenshot viewer; covers everything while it is open.
+  screenshotViewerRef: RefObject<HTMLDivElement | null>
 }
 
 export function useMousePassthrough(refs: HitTestRefs) {
@@ -31,9 +33,10 @@ export function useMousePassthrough(refs: HitTestRefs) {
     }
     return (
       check(refs.panelRef) ||
-      check(refs.notificationRef)
+      check(refs.notificationRef) ||
+      check(refs.screenshotViewerRef)
     )
-  }, [isInside, refs.panelRef, refs.notificationRef])
+  }, [isInside, refs.panelRef, refs.notificationRef, refs.screenshotViewerRef])
 
   useEffect(() => {
     setOverlayMouseIgnore(true)

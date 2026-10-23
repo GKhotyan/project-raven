@@ -136,8 +136,9 @@ export function OverlayWindow() {
   // Hit-test refs for mouse passthrough
   const panelRef = useRef<HTMLDivElement | null>(null)
   const notificationRef = useRef<HTMLDivElement | null>(null)
+  const screenshotViewerRef = useRef<HTMLDivElement | null>(null)
 
-  const { setOverlayMouseIgnore } = useMousePassthrough({ panelRef, notificationRef })
+  const { setOverlayMouseIgnore } = useMousePassthrough({ panelRef, notificationRef, screenshotViewerRef })
 
   const getPanelHeight = useCallback(
     () => panelRef.current?.offsetHeight ?? OVERLAY_DEFAULT_COMPACT_HEIGHT,
@@ -1228,7 +1229,7 @@ export function OverlayWindow() {
           </div>
         )}
 
-        <ScreenshotStrip isRecording={isRecording} />
+        <ScreenshotStrip isRecording={isRecording} viewerRef={screenshotViewerRef} />
         {screenshotError && (
           <p className="px-4 pt-1 text-[11px] text-red-300/90">{screenshotError}</p>
         )}
