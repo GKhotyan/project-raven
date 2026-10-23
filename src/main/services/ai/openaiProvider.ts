@@ -92,7 +92,7 @@ export class OpenAIProvider implements AIProvider {
   }): Promise<string> {
     const client = await this.createClient();
 
-    const messages: Array<{ role: 'system' | 'user'; content: ReturnType<OpenAIProvider['convertContent']> }> = [];
+    const messages: OpenAIChatMessage[] = [];
     if (params.system) {
       messages.push({ role: 'system', content: params.system });
     }
