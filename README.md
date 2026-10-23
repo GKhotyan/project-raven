@@ -34,6 +34,9 @@ This is a fork of [Laxcorp-Research/project-raven](https://github.com/Laxcorp-Re
 - **No separate Action Items card.** Notes no longer run an extra extraction that duplicated the summary's own task section when the model titled it in another language (e.g. "Действия").
 - **Send summary to Mattermost via n8n.** Set the n8n webhook URL and header token under **Settings → Integrations**, then use **Send summary** on a session. The channel is the session's mode name, lowercased with spaces as dashes ("HRM Daily" → `hrm-daily`), and the meeting key is `<channel>:YYYY-MM-DD`.
 - **Sessions can be titled after their mode.** A checkbox in the mode editor names sessions recorded in that mode after the mode instead of an AI-generated title. Switching a session to such a mode renames it too.
+- **Screenshots you paste instead of automatic screen capture.** During a session, paste (⌘V) or drop a PNG/JPEG onto the overlay. Thumbnails show above the input; click one for a full-screen quick look (Esc closes, ←/→ step through). The dashboard shows a session's screenshots in its transcript, and the notes see them in place as `[Screenshot N · mm:ss]` markers.
+  - Right after a paste, a vision model writes a text description of the screenshot in the background. Assist sends the two newest screenshots as images and older ones as that text, so requests stay light; the live transcript carries the same markers as the notes.
+- **One overlay card.** The controls, tabs and conversation share one card: drag it by any empty part of the title bar, resize it from any edge or corner, and fold it down to the title bar with the chevron. Quick actions wrap as chips, and the Assist / paste hint sits on its own line under the input.
 - **Long Notes Template prompts are readable.** In the mode editor, each section's instructions wrap and the field grows with the text (scrolling past a max height), instead of a single line.
 
 <p align="center">
