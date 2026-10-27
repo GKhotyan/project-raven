@@ -81,7 +81,7 @@ declare global {
         deepgramKey: string,
         anthropicKey: string,
         openaiKey?: string,
-        extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string },
+        extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string; localGptApiKey?: string },
       ) => Promise<boolean>;
       apiKeysHas: () => Promise<boolean>;
       apiKeysClear: () => Promise<boolean>;
@@ -99,10 +99,10 @@ declare global {
       validateApiKeys: (deepgramKey: string, anthropicKey: string) => Promise<{ valid: boolean; error?: string }>;
       validateKeys: (
         deepgramKey: string,
-        aiProvider: 'anthropic' | 'openai' | 'zai',
+        aiProvider: 'anthropic' | 'openai' | 'zai' | 'local-gpt',
         aiKey: string,
-        extras?: { openaiKey?: string; zaiKey?: string },
-      ) => Promise<{ valid: boolean; error?: string; deepgramError?: string; aiError?: string; openaiError?: string; zaiError?: string; throttled?: boolean }>;
+        extras?: { openaiKey?: string; zaiKey?: string; localGptKey?: string; gemma4BaseUrl?: string },
+      ) => Promise<{ valid: boolean; error?: string; deepgramError?: string; aiError?: string; openaiError?: string; zaiError?: string; localGptError?: string; throttled?: boolean }>;
       validateAssemblyAIKey: (apiKey: string) => Promise<{ valid: boolean; error?: string }>;
       validateRecallKey: (apiKey: string, apiUrl?: string) => Promise<{ valid: boolean; error?: string }>;
       openExternal: (url: string) => Promise<boolean>;

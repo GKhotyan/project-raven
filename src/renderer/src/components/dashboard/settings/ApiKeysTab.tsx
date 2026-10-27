@@ -22,9 +22,15 @@ export function ApiKeysTab() {
   const [anthropicStatus, setAnthropicStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
   const [openaiStatus, setOpenaiStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
   const [zaiKey, setZaiKey] = useState('')
+  const [localGptKey, setLocalGptKey] = useState('')
   const [originalZaiKey, setOriginalZaiKey] = useState('')
+  const [originalLocalGptKey, setOriginalLocalGptKey] = useState('')
   const [showZai, setShowZai] = useState(false)
+  const [showLocalGpt, setShowLocalGpt] = useState(false)
   const [zaiStatus, setZaiStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
+  const [localGptStatus, setLocalGptStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
+  const [gemma4BaseUrl, setGemma4BaseUrl] = useState('')
+  const [originalGemma4BaseUrl, setOriginalGemma4BaseUrl] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -56,6 +62,14 @@ export function ApiKeysTab() {
           setOriginalZaiKey(zKey)
           setZaiStatus('valid')
         }
+        const localKey = (await window.raven.storeGet('localGptApiKey')) as string
+        if (localKey) {
+          setLocalGptKey(localKey)
+          setOriginalLocalGptKey(localKey)
+          setLocalGptStatus('valid')
+        }
+        const baseUrl = (await window.raven.storeGet('gemma4BaseUrl')) as string
+        if (baseUrl) { setGemma4BaseUrl(baseUrl); setOriginalGemma4BaseUrl(baseUrl) }
         const aaiKey = (await window.raven.storeGet('assemblyaiApiKey')) as string
         if (aaiKey) { setAssemblyKey(aaiKey); setOriginalAssemblyKey(aaiKey); setAssemblyStatus('valid') }
       } catch (error) {
@@ -70,6 +84,8 @@ export function ApiKeysTab() {
     || anthropicKey.trim() !== originalAnthropicKey
     || openaiKey.trim() !== originalOpenaiKey
     || zaiKey.trim() !== originalZaiKey
+    || localGptKey.trim() !== originalLocalGptKey
+    || gemma4BaseUrl.trim() !== originalGemma4BaseUrl
     || assemblyKey.trim() !== originalAssemblyKey
   const canSave = hasChanges
 
@@ -79,16 +95,17 @@ export function ApiKeysTab() {
       return false
     }
 
-    const plan = planLlmKeyValidation({ anthropic: anthropicKey, openai: openaiKey, zai: zaiKey })
+    const plan = planLlmKeyValidation({ anthropic: anthropicKey, openai: openaiKey, zai: zaiKey, 'local-gpt': localGptKey })
     if (!plan) {
-      setSaveMessage({ type: 'error', text: 'Add an Anthropic, OpenAI or Z.ai key' })
+      setSaveMessage({ type: 'error', text: 'Add an Anthropic, OpenAI, Z.ai or Gemma 4 key' })
       return false
     }
 
-    const setStatusFor = { anthropic: setAnthropicStatus, openai: setOpenaiStatus, zai: setZaiStatus }
+    const setStatusFor = { anthropic: setAnthropicStatus, openai: setOpenaiStatus, zai: setZaiStatus, 'local-gpt': setLocalGptStatus }
     const checked: Array<keyof typeof setStatusFor> = [plan.primary]
     if (plan.extras?.openaiKey) checked.push('openai')
     if (plan.extras?.zaiKey) checked.push('zai')
+    if (plan.extras?.localGptKey) checked.push('local-gpt')
 
     if (deepgramKey.trim()) setDeepgramStatus('validating')
     checked.forEach((p) => setStatusFor[p]('validating'))
@@ -96,7 +113,7 @@ export function ApiKeysTab() {
 
     try {
       // Every LLM key goes in a single call; the channel has a 2s cooldown.
-      const result = await window.raven.validateKeys(deepgramKey.trim(), plan.primary, plan.primaryKey, plan.extras)
+      const result = await window.raven.validateKeys(deepgramKey.trim(), plan.primary, plan.primaryKey, { ...plan.extras, gemma4BaseUrl: gemma4BaseUrl.trim() })
       if ('throttled' in result && result.throttled) {
         // Nothing was checked; don't leave spinners running.
         if (deepgramKey.trim()) setDeepgramStatus('idle')
@@ -109,6 +126,7 @@ export function ApiKeysTab() {
         setStatusFor[plan.primary](result.aiError ? 'invalid' : 'valid')
         if (plan.extras?.openaiKey) setOpenaiStatus(result.openaiError ? 'invalid' : 'valid')
         if (plan.extras?.zaiKey) setZaiStatus(result.zaiError ? 'invalid' : 'valid')
+        if (plan.extras?.localGptKey) setLocalGptStatus(result.localGptError ? 'invalid' : 'valid')
         setSaveMessage({ type: 'error', text: result.error || 'Invalid API keys' })
         return false
       }
@@ -133,6 +151,7 @@ export function ApiKeysTab() {
       if (anthropicKey.trim()) setAnthropicStatus('invalid')
       if (openaiKey.trim()) setOpenaiStatus('invalid')
       if (zaiKey.trim()) setZaiStatus('invalid')
+      if (localGptKey.trim()) setLocalGptStatus('invalid')
       setSaveMessage({ type: 'error', text: 'Failed to validate connection' })
       return false
     }
@@ -148,12 +167,16 @@ export function ApiKeysTab() {
         await window.raven.apiKeysSave(deepgramKey.trim(), anthropicKey.trim(), openaiKey.trim(), {
           assemblyaiApiKey: assemblyKey.trim(),
           zaiApiKey: zaiKey.trim(),
+          localGptApiKey: localGptKey.trim(),
         })
+        await window.raven.storeSet('gemma4BaseUrl', gemma4BaseUrl.trim())
         setSaveMessage({ type: 'success', text: 'API keys saved' })
         setOriginalDeepgramKey(deepgramKey.trim())
         setOriginalAnthropicKey(anthropicKey.trim())
         setOriginalOpenaiKey(openaiKey.trim())
         setOriginalZaiKey(zaiKey.trim())
+        setOriginalLocalGptKey(localGptKey.trim())
+        setOriginalGemma4BaseUrl(gemma4BaseUrl.trim())
         setOriginalAssemblyKey(assemblyKey.trim())
       } catch {
         setSaveMessage({ type: 'error', text: 'Failed to save API keys' })
@@ -478,6 +501,56 @@ export function ApiKeysTab() {
           </div>
         </div>
         <p className="text-xs text-gray-400">GLM models. Choose where to use it under Models.</p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium text-gray-700">
+            Gemma 4 API Key <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+        </div>
+        <label className="block text-sm font-medium text-gray-700">Gemma 4 API URL</label>
+        <input type="url" value={gemma4BaseUrl} onChange={(e) => { setGemma4BaseUrl(e.target.value); setSaveMessage(null) }} placeholder="https://your-server/v1 or full /chat/completions URL" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        <p className="text-xs text-gray-400">Enter the API URL supplied by your Gemma 4 server. No default is configured.</p>
+        <div className="relative">
+          <input
+            type={showLocalGpt ? 'text' : 'password'}
+            value={localGptKey}
+            onChange={(e) => {
+              setLocalGptKey(e.target.value)
+              setLocalGptStatus('idle')
+              setSaveMessage(null)
+            }}
+            placeholder="Gemma 4 API key"
+            className={`w-full px-3 py-2 pr-20 border rounded-lg text-sm transition-colors ${
+              localGptStatus === 'invalid'
+                ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                : localGptStatus === 'valid'
+                ? 'border-green-300 focus:border-green-500 focus:ring-green-500'
+                : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+            } focus:outline-none focus:ring-1`}
+          />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            {getStatusIcon(localGptStatus)}
+            <button
+              type="button"
+              onClick={() => setShowLocalGpt(!showLocalGpt)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              {showLocalGpt ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M3 3l18 18" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400">Gemma 4. Choose where to use it under Models.</p>
       </div>
 
       {saveMessage && (

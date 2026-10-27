@@ -77,6 +77,7 @@ export function ModelsTab() {
     anthropic: false,
     openai: false,
     zai: false,
+    'local-gpt': false,
   })
   const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle')
   const saveFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -94,6 +95,7 @@ export function ModelsTab() {
           anthropicKey,
           openaiKey,
           zaiKey,
+          localGptKey,
         ] = await Promise.all([
           window.raven.storeGet('aiProvider'),
           window.raven.storeGet('aiModel'),
@@ -104,6 +106,7 @@ export function ModelsTab() {
           window.raven.storeGet('anthropicApiKey'),
           window.raven.storeGet('openaiApiKey'),
           window.raven.storeGet('zaiApiKey'),
+          window.raven.storeGet('localGptApiKey'),
         ])
 
         const liveProvider = parseAIProviderName(aiProviderRaw) ?? 'anthropic'
@@ -115,7 +118,7 @@ export function ModelsTab() {
         setNotes(notesSlotFromStore(notesProvider, notesModelRaw, notesEffortRaw, notesProvider))
 
         const present = (v: unknown) => typeof v === 'string' && v.trim().length > 0
-        setHasKeyFor({ anthropic: present(anthropicKey), openai: present(openaiKey), zai: present(zaiKey) })
+        setHasKeyFor({ anthropic: present(anthropicKey), openai: present(openaiKey), zai: present(zaiKey), 'local-gpt': present(localGptKey) })
       } catch (error) {
         log.error('Failed to load model settings:', error)
       }
@@ -321,10 +324,11 @@ function ModelSlotCard({
         <p className="text-xs text-gray-400 mt-0.5">{description}</p>
       </div>
 
-      <div className="flex gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {providerBtn('anthropic', 'Anthropic', 'Claude models')}
         {providerBtn('openai', 'OpenAI', 'GPT models')}
         {providerBtn('zai', 'Z.ai', 'GLM models')}
+        {providerBtn('local-gpt', 'Gemma 4', 'OpenAI compatible API')}
       </div>
 
       <div className="space-y-2">

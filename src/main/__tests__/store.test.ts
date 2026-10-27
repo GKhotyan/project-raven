@@ -378,3 +378,19 @@ describe('store', () => {
     })
   })
 })
+
+
+describe('Local GPT credentials', () => {
+  it('encrypts, decrypts, redacts and clears the independent key', () => {
+    mockIsEncryptionAvailable.mockReturnValue(true)
+    saveApiKeys('dg', '', undefined, { localGptApiKey: 'local-secret' })
+    const encrypted = Buffer.from('enc-local-secret').toString('base64')
+    expect(mockSet).toHaveBeenCalledWith('localGptApiKey', encrypted)
+    mockGet.mockImplementation((key: string) => key === 'localGptApiKey' ? encrypted : undefined)
+    expect(getApiKey('localGptApiKey')).toBe('local-secret')
+    expect(getAllSettings().localGptApiKey).toBe('')
+    expect(hasApiKeys()).toBe(false)
+    clearApiKeys()
+    expect(mockSet).toHaveBeenCalledWith('localGptApiKey', '')
+  })
+})

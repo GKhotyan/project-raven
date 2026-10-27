@@ -139,7 +139,8 @@ export function splitAssistScreenshots(
 const ZAI_VISION_MODELS = new Set(['glm-5v-turbo', 'glm-5.3-flash', 'glm-5.3-flashx'])
 
 /** Text-only GLM models answer 400 on image parts; every other catalog model reads images. */
-export function modelAcceptsImages(provider: 'anthropic' | 'openai' | 'zai', model: string): boolean {
+export function modelAcceptsImages(provider: 'anthropic' | 'openai' | 'zai' | 'local-gpt', model: string): boolean {
+  if (provider === 'local-gpt') return false
   return provider === 'zai' ? ZAI_VISION_MODELS.has(model) : true
 }
 
@@ -149,7 +150,7 @@ export function modelAcceptsImages(provider: 'anthropic' | 'openai' | 'zai', mod
  * null means neither can, and Assist keeps sending every screenshot as an image.
  */
 export function pickScreenshotDescriber(params: {
-  provider: 'anthropic' | 'openai' | 'zai'
+  provider: 'anthropic' | 'openai' | 'zai' | 'local-gpt'
   memoryModel: string
   assistModel: string
 }): 'memory' | 'assist' | null {

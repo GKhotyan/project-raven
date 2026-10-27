@@ -566,3 +566,24 @@ describe('providerFactory', () => {
     })
   })
 })
+
+
+describe('Local GPT store routing', () => {
+  beforeEach(() => clearProviderCache())
+
+  it.each([getProviderFromStore, getNotesProvider, getMemoryProvider])('uses the local model and key for %s', async (resolve) => {
+    mockStoreGet.mockImplementation((key: string) => ({
+      aiProvider: 'local-gpt', localGptApiKey: 'local-key', anthropicApiKey: 'must-not-use',
+    } as Record<string, unknown>)[key])
+    const provider = await resolve()
+    expect(provider.name).toBe('local-gpt')
+    expect(provider.model).toBe('detmir-gpt')
+  })
+
+  it('requires its own key even if another provider has credentials', async () => {
+    mockStoreGet.mockImplementation((key: string) => ({
+      aiProvider: 'local-gpt', anthropicApiKey: 'must-not-use',
+    } as Record<string, unknown>)[key])
+    await expect(getProviderFromStore()).rejects.toThrow('No API key configured for local-gpt')
+  })
+})

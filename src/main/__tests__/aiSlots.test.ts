@@ -19,22 +19,24 @@ const ANTHROPIC_CATALOG = ['claude-haiku-4-5', 'claude-sonnet-4-6', 'claude-sonn
 const OPENAI_CATALOG = ['gpt-5.6-luna', 'gpt-5.2']
 
 describe('aiSlots', () => {
-  it('parseAIProviderName accepts anthropic, openai and zai only', () => {
+  it('parseAIProviderName accepts the four supported providers', () => {
     expect(parseAIProviderName('anthropic')).toBe('anthropic')
     expect(parseAIProviderName('openai')).toBe('openai')
     expect(parseAIProviderName('zai')).toBe('zai')
+    expect(parseAIProviderName('local-gpt')).toBe('local-gpt')
     expect(parseAIProviderName('gemini')).toBeNull()
     expect(parseAIProviderName('')).toBeNull()
     expect(parseAIProviderName(undefined)).toBeNull()
   })
 
   it('maps every provider to a label and an API key field', () => {
-    expect(AI_PROVIDERS).toEqual(['anthropic', 'openai', 'zai'])
-    expect(PROVIDER_LABELS).toEqual({ anthropic: 'Anthropic', openai: 'OpenAI', zai: 'Z.ai' })
+    expect(AI_PROVIDERS).toEqual(['anthropic', 'openai', 'zai', 'local-gpt'])
+    expect(PROVIDER_LABELS).toEqual({ anthropic: 'Anthropic', openai: 'OpenAI', zai: 'Z.ai', 'local-gpt': 'Gemma 4' })
     expect(PROVIDER_API_KEY_FIELD).toEqual({
       anthropic: 'anthropicApiKey',
       openai: 'openaiApiKey',
       zai: 'zaiApiKey',
+      'local-gpt': 'localGptApiKey',
     })
   })
 

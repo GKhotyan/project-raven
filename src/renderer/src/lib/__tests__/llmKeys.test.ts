@@ -29,3 +29,8 @@ describe('planLlmKeyValidation', () => {
     })
   })
 })
+
+it('validates a Local GPT key by itself and alongside another vendor', () => {
+  expect(planLlmKeyValidation({ anthropic: '', openai: '', zai: '', 'local-gpt': ' local-key ' })).toEqual({ primary: 'local-gpt', primaryKey: 'local-key' })
+  expect(planLlmKeyValidation({ anthropic: 'ant', openai: '', zai: '', 'local-gpt': ' local-key ' })).toEqual({ primary: 'anthropic', primaryKey: 'ant', extras: { localGptKey: 'local-key' } })
+})

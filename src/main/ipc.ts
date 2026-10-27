@@ -82,7 +82,7 @@ export function registerIpcHandlers(): void {
 
   const PROTECTED_STORE_KEYS: readonly string[] = [
     'mode', 'auth_tokens', 'auth_user',
-    'deepgramApiKey', 'anthropicApiKey', 'openaiApiKey', 'zaiApiKey',
+    'deepgramApiKey', 'anthropicApiKey', 'openaiApiKey', 'zaiApiKey', 'localGptApiKey',
     'assemblyaiApiKey', 'recallApiKey', 'apiKeysConfigured',
   ]
 
@@ -120,13 +120,14 @@ export function registerIpcHandlers(): void {
       deepgramKey: string,
       anthropicKey: string,
       openaiKey?: string,
-      extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string },
+      extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string; localGptApiKey?: string },
     ) => {
       assertString(deepgramKey, 'deepgramKey', 500)
       assertString(anthropicKey, 'anthropicKey', 500)
       if (openaiKey !== undefined) assertString(openaiKey, 'openaiKey', 500)
       if (extras?.assemblyaiApiKey !== undefined) assertString(extras.assemblyaiApiKey, 'assemblyaiApiKey', 500)
       if (extras?.recallApiKey !== undefined) assertString(extras.recallApiKey, 'recallApiKey', 500)
+      if (extras?.localGptApiKey !== undefined) assertString(extras.localGptApiKey, 'localGptApiKey', 500)
       if (extras?.zaiApiKey !== undefined) assertString(extras.zaiApiKey, 'zaiApiKey', 500)
       saveApiKeys(deepgramKey, anthropicKey, openaiKey, extras)
       void import('./services/vendorFeatures').then(({ reinitRecallFromStore }) =>
@@ -181,10 +182,14 @@ export function registerIpcHandlers(): void {
         throw new Error(`aiProvider must be one of ${AI_PROVIDERS.join(', ')}`)
       }
       if (extras?.openaiKey !== undefined) assertString(extras.openaiKey, 'openaiKey', 500)
+      if (extras?.localGptKey !== undefined) assertString(extras.localGptKey, 'localGptKey', 500)
+      if (extras?.gemma4BaseUrl !== undefined) assertString(extras.gemma4BaseUrl, 'gemma4BaseUrl', 2000)
       if (extras?.zaiKey !== undefined) assertString(extras.zaiKey, 'zaiKey', 500)
       const secondary: ValidateKeysExtras = {}
       if (extras?.openaiKey) secondary.openaiKey = extras.openaiKey
       if (extras?.zaiKey) secondary.zaiKey = extras.zaiKey
+      if (extras?.localGptKey) secondary.localGptKey = extras.localGptKey
+      if (extras?.gemma4BaseUrl !== undefined) secondary.gemma4BaseUrl = extras.gemma4BaseUrl
       const { validateKeys } = await import('./validators')
       return validateKeys(deepgramKey, aiProvider, aiKey, Object.keys(secondary).length > 0 ? secondary : undefined)
     }

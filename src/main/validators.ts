@@ -1,3 +1,4 @@
+import { normalizeGemma4BaseUrl } from './services/ai/gemma4Url'
 import { ZAI_BASE_URL } from './services/ai/types'
 import { PROVIDER_LABELS, type AIProviderName } from '../shared/aiSlots'
 
@@ -172,6 +173,26 @@ export async function validateZaiKey(apiKey: string): Promise<{ valid: boolean; 
   }
 }
 
+export async function validateLocalGptKey(apiKey: string, baseURL: string): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const OpenAI = (await import('openai')).default
+    const client = new OpenAI({ apiKey, baseURL: normalizeGemma4BaseUrl(baseURL), timeout: VALIDATION_TIMEOUT_MS, maxRetries: 0 })
+    await client.chat.completions.create({
+      model: 'detmir-gpt',
+      messages: [{ role: 'user', content: 'ping' }],
+      max_tokens: 8,
+      stream: false,
+      ...{ use_tools: 'never' },
+    })
+    return { valid: true }
+  } catch (err) {
+    const status = statusFromUnknown(err)
+    if (status === 401) return { valid: false, error: 'Invalid Gemma 4 API key.' }
+    if (status !== undefined) return { valid: false, error: `Gemma 4 returned status ${status}.` }
+    return vendorUnreachable('Gemma 4', err)
+  }
+}
+
 export async function validateAssemblyAIKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
   try {
     const response = await vendorGet('https://api.assemblyai.com/v2/account', {
@@ -227,6 +248,8 @@ export async function validateBothKeys(
 export interface ValidateKeysExtras {
   openaiKey?: string
   zaiKey?: string
+  localGptKey?: string
+  gemma4BaseUrl?: string
 }
 
 export interface ValidateKeysResult {
@@ -236,12 +259,14 @@ export interface ValidateKeysResult {
   aiError?: string
   openaiError?: string
   zaiError?: string
+  localGptError?: string
 }
 
 const LLM_KEY_VALIDATORS: Record<AIProviderName, (apiKey: string) => Promise<{ valid: boolean; error?: string }>> = {
   anthropic: (apiKey) => validateAnthropicKey(apiKey),
   openai: (apiKey) => validateOpenAIKey(apiKey),
   zai: (apiKey) => validateZaiKey(apiKey),
+  'local-gpt': (apiKey) => validateLocalGptKey(apiKey, ''),
 }
 
 /**
@@ -257,14 +282,16 @@ export async function validateKeys(
   extras?: ValidateKeysExtras,
 ): Promise<ValidateKeysResult> {
   const secondaryOpenaiKey = aiProvider !== 'openai' ? extras?.openaiKey?.trim() : undefined
+  const secondaryLocalGptKey = aiProvider !== 'local-gpt' ? extras?.localGptKey?.trim() : undefined
   const secondaryZaiKey = aiProvider !== 'zai' ? extras?.zaiKey?.trim() : undefined
 
   const ok = Promise.resolve({ valid: true as const })
-  const [deepgramResult, aiResult, openaiResult, zaiResult] = await Promise.all([
+  const [deepgramResult, aiResult, openaiResult, zaiResult, localGptResult] = await Promise.all([
     deepgramKey ? validateDeepgramKey(deepgramKey) : ok,
-    LLM_KEY_VALIDATORS[aiProvider](aiKey),
+    aiProvider === 'local-gpt' ? validateLocalGptKey(aiKey, extras?.gemma4BaseUrl ?? '') : LLM_KEY_VALIDATORS[aiProvider](aiKey),
     secondaryOpenaiKey ? validateOpenAIKey(secondaryOpenaiKey) : ok,
     secondaryZaiKey ? validateZaiKey(secondaryZaiKey) : ok,
+    secondaryLocalGptKey ? validateLocalGptKey(secondaryLocalGptKey, extras?.gemma4BaseUrl ?? '') : ok,
   ])
 
   const aiName = PROVIDER_LABELS[aiProvider]
@@ -273,12 +300,15 @@ export async function validateKeys(
   const openaiError = openaiResult.valid ? undefined : (openaiResult.error || 'Invalid OpenAI key.')
   const zaiError = zaiResult.valid ? undefined : (zaiResult.error || 'Invalid Z.ai key.')
 
-  if (deepgramError || aiError || openaiError || zaiError) {
+  const localGptError = localGptResult.valid ? undefined : (localGptResult.error || 'Invalid Gemma 4 key.')
+
+  if (deepgramError || aiError || openaiError || zaiError || localGptError) {
     const failures: Array<{ name: string; error: string }> = []
     if (deepgramError) failures.push({ name: 'Deepgram', error: deepgramError })
     if (aiError) failures.push({ name: aiName, error: aiError })
     if (openaiError) failures.push({ name: 'OpenAI', error: openaiError })
     if (zaiError) failures.push({ name: 'Z.ai', error: zaiError })
+    if (localGptError) failures.push({ name: 'Gemma 4', error: localGptError })
     const error = failures.length > 1
       ? `Invalid ${failures.map((f) => f.name).join(', ')} keys.`
       : failures[0].error
@@ -289,6 +319,7 @@ export async function validateKeys(
       aiError,
       ...(secondaryOpenaiKey ? { openaiError } : {}),
       ...(secondaryZaiKey ? { zaiError } : {}),
+      ...(secondaryLocalGptKey ? { localGptError } : {}),
     }
   }
 

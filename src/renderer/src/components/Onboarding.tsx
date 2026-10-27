@@ -33,13 +33,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   useEffect(() => {
     void (async () => {
       try {
-        const [storedStep, dg, aai, ant, oai, zai, provider] = await Promise.all([
+        const [storedStep, dg, aai, ant, oai, zai, localGpt, provider] = await Promise.all([
           window.raven.storeGet('onboardingStep'),
           window.raven.storeGet('deepgramApiKey'),
           window.raven.storeGet('assemblyaiApiKey'),
           window.raven.storeGet('anthropicApiKey'),
           window.raven.storeGet('openaiApiKey'),
           window.raven.storeGet('zaiApiKey'),
+          window.raven.storeGet('localGptApiKey'),
           window.raven.storeGet('aiProvider'),
         ])
         setStep(parseOnboardingStep(storedStep) as 1 | 2 | 3 | 4 | 5 | 6)
@@ -48,6 +49,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         if (typeof ant === 'string' && ant) setAnthropicKey(ant)
         if (typeof oai === 'string' && oai) setOpenaiKey(oai)
         if (typeof zai === 'string' && zai) setZaiKey(zai)
+        if (typeof localGpt === 'string' && localGpt) setLocalGptKey(localGpt)
+        const baseUrl = await window.raven.storeGet('gemma4BaseUrl')
+        if (typeof baseUrl === 'string') setGemma4BaseUrl(baseUrl)
         const storedProvider = parseAIProviderName(provider)
         if (storedProvider) setAiProvider(storedProvider)
       } finally {
@@ -69,6 +73,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [anthropicKey, setAnthropicKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
   const [zaiKey, setZaiKey] = useState('')
+  const [localGptKey, setLocalGptKey] = useState('')
+  const [gemma4BaseUrl, setGemma4BaseUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [deepgramInvalid, setDeepgramInvalid] = useState(false)
   const [assemblyInvalid, setAssemblyInvalid] = useState(false)
@@ -80,7 +86,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [showAiKey, setShowAiKey] = useState(false)
   const [screenNeedsRestart, setScreenNeedsRestart] = useState(false)
 
-  const aiKey = { anthropic: anthropicKey, openai: openaiKey, zai: zaiKey }[aiProvider]
+  const aiKey = { anthropic: anthropicKey, openai: openaiKey, zai: zaiKey, 'local-gpt': localGptKey }[aiProvider]
 
   const TOTAL_STEPS = 6
 
@@ -103,7 +109,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         const result = await window.raven.validateKeys(
           deepgramKey.trim(),
           aiProvider,
-          aiKey.trim()
+          aiKey.trim(),
+          aiProvider === 'local-gpt' ? { gemma4BaseUrl } : undefined
         )
         if ('throttled' in result && result.throttled) {
           setError('Please wait a moment and try again.')
@@ -230,9 +237,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   const persistValidatedKeys = async () => {
-    const extras: { assemblyaiApiKey?: string; zaiApiKey?: string } = {}
+    const extras: { assemblyaiApiKey?: string; zaiApiKey?: string; localGptApiKey?: string } = {}
     if (assemblyKey.trim()) extras.assemblyaiApiKey = assemblyKey.trim()
     if (aiProvider === 'zai') extras.zaiApiKey = zaiKey.trim()
+    if (aiProvider === 'local-gpt') extras.localGptApiKey = localGptKey.trim()
+    if (aiProvider === 'local-gpt') await window.raven.storeSet('gemma4BaseUrl', gemma4BaseUrl.trim())
     await window.raven.apiKeysSave(
       deepgramKey.trim(),
       aiProvider === 'anthropic' ? anthropicKey.trim() : '',
@@ -425,7 +434,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                   {/* AI Provider Toggle */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">AI Provider</label>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => {
                           setAiProvider('anthropic')
@@ -464,6 +473,19 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                         }`}
                       >
                         Z.ai
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAiProvider('local-gpt')
+                          setError(null)
+                        }}
+                        className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                          aiProvider === 'local-gpt'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        Gemma 4
                       </button>
                     </div>
                   </div>
@@ -555,8 +577,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                     </div>
                   ) : (
                     <div className="space-y-1.5">
+                      {aiProvider === 'local-gpt' && <>
+                        <label className="text-sm font-medium text-gray-700">Gemma 4 API URL</label>
+                        <input value={gemma4BaseUrl} onChange={(e) => setGemma4BaseUrl(e.target.value)} placeholder="https://your-server/v1" className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm" />
+                      </>}
                       <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-gray-700">Z.ai Key</label>
+                        <label className="text-sm font-medium text-gray-700">{aiProvider === 'local-gpt' ? 'Gemma 4 Key' : 'Z.ai Key'}</label>
+                        {aiProvider === 'zai' && (
                         <a
                           href="#"
                           onClick={(e) => {
@@ -568,20 +595,21 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                           Get key
                           <ExternalLink size={10} />
                         </a>
+                        )}
                       </div>
                       <div className="relative">
                         <input
                           type={showAiKey ? 'text' : 'password'}
-                          value={zaiKey}
-                          onChange={(e) => { setZaiKey(e.target.value); setAiKeyInvalid(false); setError(null) }}
-                          placeholder="Z.ai API key"
+                          value={aiProvider === 'local-gpt' ? localGptKey : zaiKey}
+                          onChange={(e) => { (aiProvider === 'local-gpt' ? setLocalGptKey : setZaiKey)(e.target.value); setAiKeyInvalid(false); setError(null) }}
+                          placeholder={aiProvider === 'local-gpt' ? 'Gemma 4 API key' : 'Z.ai API key'}
                           className={`w-full px-3 py-2.5 pr-10 bg-white border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
                             aiKeyInvalid
                               ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                               : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
                           }`}
                         />
-                        {zaiKey && (
+                        {aiKey && (
                           <button
                             type="button"
                             onClick={() => setShowAiKey(!showAiKey)}
@@ -592,7 +620,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                         )}
                       </div>
                       <p className="text-xs text-gray-400">
-                        GLM models. Pay-as-you-go.
+                        {aiProvider === 'local-gpt' ? 'Gemma 4 API compatible endpoint.' : 'GLM models. Pay-as-you-go.'}
                       </p>
                     </div>
                   )}

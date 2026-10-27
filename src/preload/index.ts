@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('raven', {
     deepgramKey: string,
     anthropicKey: string,
     openaiKey?: string,
-    extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string },
+    extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string; localGptApiKey?: string },
   ) => ipcRenderer.invoke('store:save-api-keys', deepgramKey, anthropicKey, openaiKey, extras),
   apiKeysHas: () => ipcRenderer.invoke('store:has-api-keys'),
   apiKeysClear: () => ipcRenderer.invoke('store:clear-api-keys'),
@@ -20,9 +20,9 @@ contextBridge.exposeInMainWorld('raven', {
   // extras validates secondary LLM keys in the same (cooldown-limited) call.
   validateKeys: (
     deepgramKey: string,
-    aiProvider: 'anthropic' | 'openai' | 'zai',
+    aiProvider: 'anthropic' | 'openai' | 'zai' | 'local-gpt',
     aiKey: string,
-    extras?: { openaiKey?: string; zaiKey?: string },
+    extras?: { openaiKey?: string; zaiKey?: string; localGptKey?: string; gemma4BaseUrl?: string },
   ) => ipcRenderer.invoke('validate-keys', deepgramKey, aiProvider, aiKey, extras),
   validateAssemblyAIKey: (apiKey: string) =>
     ipcRenderer.invoke('validate-assemblyai-key', apiKey),

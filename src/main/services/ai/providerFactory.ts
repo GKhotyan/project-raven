@@ -2,6 +2,7 @@ import type { AIProvider, AIProviderConfig, AIProviderName } from './types';
 import { DEFAULT_EFFORT, resolveCatalogModel } from './types';
 import { AnthropicProvider } from './anthropicProvider';
 import { OpenAIProvider } from './openaiProvider';
+import { LocalGptProvider } from './localGptProvider';
 import { ZaiProvider } from './zaiProvider';
 import { createLogger } from '../../logger';
 import { pickScreenshotDescriber } from '../../../shared/screenshots';
@@ -22,7 +23,7 @@ let cachedProvider: AIProvider | null = null;
 let cachedConfigKey = '';
 
 function configKey(config: AIProviderConfig): string {
-  return `${config.provider}:${config.model}:${config.effort ?? ''}:${config.apiKey}`;
+  return `${config.provider}:${config.model}:${config.effort ?? ''}:${config.apiKey}:${config.baseURL ?? ''}`;
 }
 
 export function getProvider(config: AIProviderConfig): AIProvider {
@@ -37,6 +38,9 @@ export function getProvider(config: AIProviderConfig): AIProvider {
       break;
     case 'openai':
       cachedProvider = new OpenAIProvider(config.apiKey, config.model, config.effort);
+      break;
+    case 'local-gpt':
+      cachedProvider = new LocalGptProvider(config.apiKey, config.model, config.effort, config.baseURL);
       break;
     case 'zai':
       cachedProvider = new ZaiProvider(config.apiKey, config.model, config.effort);
@@ -78,7 +82,7 @@ export async function getProviderFromStore(): Promise<AIProvider> {
   const effort = (getSetting('aiEffort') as string) || DEFAULT_EFFORT;
   const apiKey = requireApiKey(provider, getApiKey);
 
-  return getProvider({ provider, model, apiKey, effort });
+  return getProvider({ provider, model, apiKey, effort, ...(provider === 'local-gpt' ? { baseURL: getSetting('gemma4BaseUrl') as string } : {}) });
 }
 
 /** Notes slot: title, summary, insights. Not used for overlay Assist or session memory. */
@@ -90,7 +94,7 @@ export async function getNotesProvider(): Promise<AIProvider> {
   const effort = resolveSettingsPickerEffort(getSetting('notesEffort'), provider);
   const apiKey = requireApiKey(provider, getApiKey);
 
-  return getProvider({ provider, model, apiKey, effort });
+  return getProvider({ provider, model, apiKey, effort, ...(provider === 'local-gpt' ? { baseURL: getSetting('gemma4BaseUrl') as string } : {}) });
 }
 
 /**
@@ -104,7 +108,7 @@ export async function getMemoryProvider(): Promise<AIProvider> {
   const model = resolveMemoryModel(getSetting('aiProvider'));
   const apiKey = requireApiKey(provider, getApiKey);
 
-  return getProvider({ provider, model, apiKey, effort: DEFAULT_EFFORT });
+  return getProvider({ provider, model, apiKey, effort: DEFAULT_EFFORT, ...(provider === 'local-gpt' ? { baseURL: getSetting('gemma4BaseUrl') as string } : {}) });
 }
 
 /**

@@ -84,6 +84,8 @@ export interface LocalSettings {
   notesEffort: string;
   openaiApiKey: string;
   zaiApiKey: string;
+  localGptApiKey: string;
+  gemma4BaseUrl: string;
 
   /**
    * Auto-start on meeting detection. 'off' disables detection entirely,
@@ -140,6 +142,8 @@ const STORE_DEFAULTS: LocalSettings = {
   notesEffort: '',
   openaiApiKey: '',
   zaiApiKey: '',
+  localGptApiKey: '',
+  gemma4BaseUrl: '',
   meetingAutoStart: 'prompt',
   activeModeId: null,
   displayName: '',
@@ -219,6 +223,8 @@ export function getAllSettings(): LocalSettings {
     notesEffort: store.get('notesEffort'),
     openaiApiKey: '',
     zaiApiKey: '',
+    localGptApiKey: '',
+    gemma4BaseUrl: store.get('gemma4BaseUrl') || '',
     meetingAutoStart: store.get('meetingAutoStart'),
     activeModeId: store.get('activeModeId'),
     displayName: store.get('displayName'),
@@ -266,6 +272,7 @@ const API_KEY_FIELDS = [
   'anthropicApiKey',
   'openaiApiKey',
   'zaiApiKey',
+  'localGptApiKey',
   'assemblyaiApiKey',
   'recallApiKey',
 ] as const;
@@ -301,12 +308,15 @@ export function saveApiKeys(
   deepgramKey: string,
   anthropicKey: string,
   openaiKey?: string,
-  extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string },
+  extras?: { assemblyaiApiKey?: string; recallApiKey?: string; zaiApiKey?: string; localGptApiKey?: string },
 ): void {
   store.set('deepgramApiKey', encryptValue(deepgramKey));
   store.set('anthropicApiKey', encryptValue(anthropicKey));
   if (openaiKey !== undefined) {
     store.set('openaiApiKey', encryptValue(openaiKey));
+  }
+  if (extras?.localGptApiKey !== undefined) {
+    store.set('localGptApiKey', encryptValue(extras.localGptApiKey));
   }
   if (extras?.zaiApiKey !== undefined) {
     store.set('zaiApiKey', encryptValue(extras.zaiApiKey));
@@ -332,6 +342,7 @@ export function clearApiKeys(): void {
   store.set('anthropicApiKey', '');
   store.set('openaiApiKey', '');
   store.set('zaiApiKey', '');
+  store.set('localGptApiKey', '');
   store.set('assemblyaiApiKey', '');
   store.set('recallApiKey', '');
   store.set('apiKeysConfigured', false);

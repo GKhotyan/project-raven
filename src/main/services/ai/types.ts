@@ -10,6 +10,7 @@ export interface AIProviderConfig {
   model: string;
   apiKey: string;
   effort?: string;
+  baseURL?: string;
 }
 
 export interface StreamCallbacks {
@@ -100,6 +101,7 @@ export const MODEL_CATALOG: Record<AIProviderName, ModelOption[]> = {
     { id: 'gpt-5.4', label: 'GPT-5.4', effort: OPENAI_GPT5 },
     { id: 'gpt-5.2', label: 'GPT-5.2', effort: OPENAI_GPT5 },
   ],
+  'local-gpt': [{ id: 'detmir-gpt', label: 'Gemma 4', effort: null }],
   zai: [
     { id: 'glm-5.3-flash', label: 'GLM-5.3 Flash', effort: ZAI_REASONING },
     { id: 'glm-5.3-flashx', label: 'GLM-5.3 FlashX', effort: ZAI_REASONING },
@@ -116,12 +118,14 @@ export const PROVIDER_MODELS: Record<AIProviderName, string[]> = {
   anthropic: MODEL_CATALOG.anthropic.map((m) => m.id),
   openai: MODEL_CATALOG.openai.map((m) => m.id),
   zai: MODEL_CATALOG.zai.map((m) => m.id),
+  'local-gpt': MODEL_CATALOG['local-gpt'].map((m) => m.id),
 };
 
 export const DEFAULT_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-haiku-4-5',
   openai: 'gpt-5.6-luna',
   zai: 'glm-5.3-flash',
+  'local-gpt': 'detmir-gpt',
 };
 
 export const DEFAULT_EFFORT: EffortLevel = 'low';
@@ -136,6 +140,7 @@ export function resolveCatalogModel(provider: AIProviderName, requested?: string
 }
 
 export function streamMaxTokensFor(provider: AIProviderName, model: string): number {
+  if (provider === 'local-gpt') return 8_192;
   if (provider === 'anthropic') {
     if (
       model === 'claude-haiku-4-5'
@@ -159,6 +164,7 @@ const IMAGE_PART_TOKENS = 2_000;
 const MIN_OUTPUT_TOKENS = 4_096;
 
 export function contextWindowFor(provider: AIProviderName, model: string): number {
+  if (provider === 'local-gpt') return 32_768;
   if (provider === 'anthropic') {
     if (
       model === 'claude-haiku-4-5'

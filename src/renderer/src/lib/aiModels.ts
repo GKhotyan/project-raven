@@ -44,6 +44,7 @@ export const MODEL_CATALOG: Record<AIProviderName, ModelOption[]> = {
     { id: 'gpt-5.4', label: 'GPT-5.4', effort: OPENAI_GPT5 },
     { id: 'gpt-5.2', label: 'GPT-5.2', effort: OPENAI_GPT5 },
   ],
+  'local-gpt': [{ id: 'detmir-gpt', label: 'Gemma 4', effort: null }],
   zai: [
     { id: 'glm-5.3-flash', label: 'GLM-5.3 Flash', effort: ZAI_REASONING },
     { id: 'glm-5.3-flashx', label: 'GLM-5.3 FlashX', effort: ZAI_REASONING },
@@ -60,6 +61,7 @@ export const DEFAULT_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-haiku-4-5',
   openai: 'gpt-5.6-luna',
   zai: 'glm-5.3-flash',
+  'local-gpt': 'detmir-gpt',
 }
 
 export const DEFAULT_EFFORT: EffortLevel = 'low'

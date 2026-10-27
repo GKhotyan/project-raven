@@ -8,11 +8,14 @@ export class OpenAIProvider implements AIProvider {
   protected apiKey: string;
   readonly model: string;
   protected effort?: string;
+  protected baseURL?: string;
+  protected streamResponses = true;
 
-  constructor(apiKey: string, model: string, effort?: string) {
+  constructor(apiKey: string, model: string, effort?: string, baseURL?: string) {
     this.apiKey = apiKey;
     this.model = model;
     this.effort = effort;
+    this.baseURL = baseURL;
   }
 
   async streamResponse(
@@ -54,6 +57,19 @@ export class OpenAIProvider implements AIProvider {
     let fullText = '';
 
     try {
+      if (!this.streamResponses) {
+        const response = await client.chat.completions.create({
+          model: this.model,
+          ...this.tokenLimitParams(params.maxTokens ?? streamMaxTokensFor(this.name, this.model)),
+          messages: openaiMessages,
+          ...this.effortParams(),
+          stream: false,
+        });
+        const text = response.choices[0]?.message?.content || '';
+        if (text) callbacks.onText(text);
+        callbacks.onDone(text);
+        return;
+      }
       const stream = await client.chat.completions.create({
         model: this.model,
         ...this.tokenLimitParams(params.maxTokens ?? streamMaxTokensFor(this.name, this.model)),
@@ -106,7 +122,7 @@ export class OpenAIProvider implements AIProvider {
 
     const response = await client.chat.completions.create({
       model: this.model,
-      ...this.tokenLimitParams(streamMaxTokensFor(this.name, this.model)),
+      ...this.shortTokenLimitParams(params.maxTokens),
       messages,
       ...this.effortParams(),
     });
@@ -125,6 +141,10 @@ export class OpenAIProvider implements AIProvider {
    */
   protected tokenLimitParams(maxTokens: number): Record<string, unknown> {
     return { max_completion_tokens: maxTokens };
+  }
+
+  protected shortTokenLimitParams(_maxTokens?: number): Record<string, unknown> {
+    return this.tokenLimitParams(streamMaxTokensFor(this.name, this.model));
   }
 
   protected effortParams(): Record<string, unknown> {

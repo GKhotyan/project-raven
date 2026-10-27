@@ -9,30 +9,33 @@
  * Unset notes* still defaults to the cheap models (Haiku / Luna).
  */
 
-export type AIProviderName = 'anthropic' | 'openai' | 'zai'
+export type AIProviderName = 'anthropic' | 'openai' | 'zai' | 'local-gpt'
 
 /** Display and fallback order. Anthropic first: it is the app default. */
-export const AI_PROVIDERS: readonly AIProviderName[] = ['anthropic', 'openai', 'zai']
+export const AI_PROVIDERS: readonly AIProviderName[] = ['anthropic', 'openai', 'zai', 'local-gpt']
 
 export const PROVIDER_LABELS: Record<AIProviderName, string> = {
   anthropic: 'Anthropic',
   openai: 'OpenAI',
   zai: 'Z.ai',
+  'local-gpt': 'Gemma 4',
 }
 
-export type AIProviderKeyField = 'anthropicApiKey' | 'openaiApiKey' | 'zaiApiKey'
+export type AIProviderKeyField = 'anthropicApiKey' | 'openaiApiKey' | 'zaiApiKey' | 'localGptApiKey'
 
 /** Store field holding each vendor's key. Never fall back to another vendor's key. */
 export const PROVIDER_API_KEY_FIELD: Record<AIProviderName, AIProviderKeyField> = {
   anthropic: 'anthropicApiKey',
   openai: 'openaiApiKey',
   zai: 'zaiApiKey',
+  'local-gpt': 'localGptApiKey',
 }
 
 export const NOTES_FAST_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-haiku-4-5',
   openai: 'gpt-5.6-luna',
   zai: 'glm-5.3-flash',
+  'local-gpt': 'detmir-gpt',
 }
 
 /** System memory compact. Not user-configurable. Not the notes cheap default. */
@@ -40,6 +43,7 @@ export const MEMORY_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-sonnet-5',
   openai: 'gpt-5.6-terra',
   zai: 'glm-5.1',
+  'local-gpt': 'detmir-gpt',
 }
 
 export function parseAIProviderName(value: unknown): AIProviderName | null {
@@ -86,6 +90,7 @@ export const NOTES_DEFAULT_EFFORT: Record<AIProviderName, NotesEffort> = {
   anthropic: 'low',
   openai: 'low',
   zai: 'high',
+  'local-gpt': 'low',
 }
 
 /** Notes effort: none/low/high; anything else falls back to the vendor default. */
